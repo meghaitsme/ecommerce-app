@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import * as c from '../controllers/order.controller';
+import { authenticate, isAdmin } from '../middlewares/auth.middleware';
+const router = Router();
+router.use(authenticate);
+router.post('/', c.create);
+router.get('/my', c.myOrders);
+router.get('/', isAdmin, c.allOrders);
+router.put('/:id/status', isAdmin, c.updateStatus);
+export default router;

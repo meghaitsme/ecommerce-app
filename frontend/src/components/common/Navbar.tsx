@@ -1,0 +1,34 @@
+import { Link } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useCart } from '../../context/CartContext';
+
+export default function Navbar() {
+  const { user, logout } = useAuth();
+  const { itemCount } = useCart();
+
+  return (
+    <nav className="navbar">
+      <Link to="/" className="brand">ShopFree</Link>
+      <div className="nav-links">
+        <Link to="/cart">Cart ({itemCount})</Link>
+        {user?.role === 'admin' && (
+          <>
+            <Link to="/admin/products">Products</Link>
+            <Link to="/admin/orders">Orders</Link>
+          </>
+        )}
+        {user ? (
+          <>
+            <span className="user-name">Hi, {user.name}</span>
+            <button onClick={logout} className="btn-link">Logout</button>
+          </>
+        ) : (
+          <>
+            <Link to="/login">Login</Link>
+            <Link to="/register">Register</Link>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+}

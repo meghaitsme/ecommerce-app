@@ -1,0 +1,10 @@
+import { Router } from 'express';
+import * as c from '../controllers/product.controller';
+import { authenticate, isAdmin } from '../middlewares/auth.middleware';
+const router = Router();
+router.get('/', c.list);
+router.get('/:id', c.getOne);
+router.post('/', authenticate, isAdmin, c.create);
+router.put('/:id', authenticate, isAdmin, c.update);
+router.delete('/:id', authenticate, isAdmin, c.remove);
+export default router;
