@@ -46,7 +46,7 @@ export default function AdminOrders() {
 
   return (
     <div className="container">
-      <h1>Admin â€” Orders</h1>
+      <h1>Admin Orders</h1>
 
       {loading && <p>Loading...</p>}
       {error && <p style={{ color: 'red' }}>{error}</p>}
@@ -82,7 +82,7 @@ export default function AdminOrders() {
               <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 12 }}>
                 {o.items.map((item, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span>{item.name} Ã— {item.quantity}</span>
+                    <span>{item.name} {item.quantity}</span>
                     <span>{formatPrice(item.price * item.quantity)}</span>
                   </div>
                 ))}

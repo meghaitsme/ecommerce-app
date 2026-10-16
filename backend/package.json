@@ -4,7 +4,7 @@
   "type": "commonjs",
   "main": "dist/server.js",
   "scripts": {
-    "dev": "ts-node-dev --respawn src/server.ts",
+    "dev": "node dist/server.js",
     "build": "tsc",
     "start": "node dist/server.js",
     "test": "jasmine --config=jasmine.json"
@@ -16,6 +16,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.4.0",
+    "resend": "^6.32.1",
     "stripe": "^15.10.0"
   },
   "devDependencies": {

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import type { Product } from '../../types';
+import { formatPrice } from '../../utils/format';
+
 
 export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -68,7 +70,7 @@ export default function AdminProducts() {
 
   return (
     <div className="container">
-      <h1>Admin ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â Products</h1>
+      <h1>Admin Products</h1>
 
       <form onSubmit={submit} style={{ background: 'white', padding: 24, borderRadius: 12, marginBottom: 32 }}>
         <h2>{editing ? 'Edit Product' : 'Add New Product'}</h2>

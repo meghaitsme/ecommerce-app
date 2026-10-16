@@ -9,3 +9,46 @@ backend/.env
 frontend/node_modules/
 frontend/dist/
 frontend/.env
+
+# ---------- Dependencies ----------
+node_modules/
+
+# ---------- Build output ----------
+dist/
+dist-backup-*/
+build/
+
+# ---------- Backups & broken files ----------
+*-backup-*/
+*.bak
+*.bak2
+*.bak-*
+*.broken
+*.orig
+*.rej
+
+# ---------- Env files (never commit secrets!) ----------
+.env
+.env.local
+.env.*.local
+
+# ---------- Logs & temp ----------
+*.log
+logs/
+err.txt
+
+# ---------- OS junk ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Editor ----------
+.vscode/
+.idea/
+*.swpbackend/check-admin.js
+frontend/Sidebarmenu/
+frontend/sidebar.css
+frontend/sidebar.js
+frontend/sidebar2.html
+backend/check-admin.js
+backend/check-admin.js
