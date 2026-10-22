@@ -1,5 +1,7 @@
 import Order from '../models/Order.model';
 import Cart from '../models/Cart.model';
+import User from '../models/User.model';
+import { emailService } from './email.service';
 
 export const createOrder = async (userId: string, shippingAddress: any) => {
   const cart = await Cart.findOne({ user: userId }).populate('items.product');
@@ -19,6 +21,27 @@ export const createOrder = async (userId: string, shippingAddress: any) => {
     shippingAddress,
     status: 'pending',
   });
+
+  // ✅ Send confirmation emails (non-blocking — order still succeeds if email fails)
+  try {
+    const user = await User.findById(userId);
+    if (user?.email) {
+      await emailService.sendOrderConfirmation(
+        user.email,
+        user.name ?? 'Customer',
+        order._id.toString(),
+        order.total
+      );
+      await emailService.notifySeller(
+        order._id.toString(),
+        user.name ?? 'Customer',
+        order.total
+      );
+    }
+  } catch (err) {
+    console.error('Order email failed:', err);
+  }
+
   return order;
 };
 

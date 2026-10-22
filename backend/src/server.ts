@@ -6,11 +6,11 @@ dotenv.config({ path: path.resolve(__dirname, '../.env') });
 import express from 'express';
 import mongoose from 'mongoose';
 import cors from 'cors';
-import authRoutes from './routes/auth.routes';
-import productRoutes from './routes/product.routes';
-import cartRoutes from './routes/cart.routes';
-import orderRoutes from './routes/order.routes';
-import { errorHandler } from './middlewares/error.middleware';
+import authRoutes from './routes/auth.routes.js';
+import productRoutes from './routes/product.routes.js';
+import cartRoutes from './routes/cart.routes.js';
+import orderRoutes from './routes/order.routes.js';
+import { errorHandler } from './middlewares/error.middleware.js';
 
 const app = express();
 app.use(cors());

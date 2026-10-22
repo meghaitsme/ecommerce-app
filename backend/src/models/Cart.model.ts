@@ -7,14 +7,16 @@ export interface ICartItem {
 }
 
 export interface ICart extends Document {
-  user: mongoose.Types.ObjectId;
+  user?: mongoose.Types.ObjectId;
+  guestId?: string;
   items: ICartItem[];
   total: number;
 }
 
 const CartSchema = new Schema<ICart>(
   {
-    user: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+user: { type: Schema.Types.ObjectId, ref: 'User', required: false, unique: true, sparse: true },
+guestId: { type: String, required: false, unique: true, sparse: true },
     items: [
       {
         product: { type: Schema.Types.ObjectId, ref: 'Product', required: true },

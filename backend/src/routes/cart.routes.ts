@@ -1,10 +1,12 @@
-import { Router } from 'express';
-import * as c from '../controllers/cart.controller';
-import { authenticate } from '../middlewares/auth.middleware';
+import { Router } from "express";
+import * as cartController from "../controllers/cart.controller";
+
 const router = Router();
-router.use(authenticate);
-router.get('/', c.getCart);
-router.post('/add', c.add);
-router.put('/item/:productId', c.update);
-router.delete('/item/:productId', c.remove);
+
+// Removed router.use(authenticate) so guests can access it
+router.get("/", cartController.getCart);
+router.post("/add", cartController.add);
+router.put("/item/:productId", cartController.update);
+router.delete("/item/:productId", cartController.remove);
+
 export default router;
