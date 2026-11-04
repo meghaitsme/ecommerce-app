@@ -8,5 +8,5 @@ export const env = {
   JWT_SECRET: process.env.JWT_SECRET || 'secret',
   JWT_EXPIRES_IN: process.env.JWT_EXPIRES_IN || '7d',
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
-  CLIENT_URL: process.env.CLIENT_URL || 'http://localhost:5173',
+  CLIENT_URL: process.env.CLIENT_URL || 'http://host.docker.internal:5173',
 };

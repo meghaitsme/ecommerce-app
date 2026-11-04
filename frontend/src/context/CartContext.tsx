@@ -1,49 +1,86 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
-import api from '../api/axios';
-import type { Cart } from '../types';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { db } from '../data/firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
-interface CartCtx {
-  cart: Cart | null;
-  add: (productId: string, quantity?: number) => Promise<void>;
-  update: (productId: string, quantity: number) => Promise<void>;
-  remove: (productId: string) => Promise<void>;
-  refresh: () => Promise<void>;
-  itemCount: number;
+interface CartItem {
+  id: string;
+  name: string;
+  price: number;
+  image: string;
+  quantity: number;
 }
-const Ctx = createContext<CartCtx>({} as CartCtx);
 
-export const CartProvider = ({ children }: { children: ReactNode }) => {
-  const [cart, setCart] = useState<Cart | null>(null);
+interface CartContextType {
+  cart: CartItem[];
+  addToCart: (product: any) => void;
+  removeFromCart: (productId: string) => void;
+  clearCart: () => void;
+  itemCount: number; // <--- 1. Added to interface
+}
+
+const CartContext = createContext<CartContextType | undefined>(undefined);
+
+export const CartProvider = ({ children }: { children: React.ReactNode }) => {
+  const [cart, setCart] = useState<CartItem[]>([]);
   const { user } = useAuth();
 
-  const refresh = async () => {
-    if (!user) { setCart(null); return; }
-    try {
-      const { data } = await api.get<Cart>('/cart');
-      setCart(data);
-    } catch { setCart(null); }
+  // Load cart from Firestore when user logs in
+  useEffect(() => {
+    const fetchCart = async () => {
+      if (user) {
+        const cartDoc = await getDoc(doc(db, 'carts', user.uid));
+        if (cartDoc.exists()) {
+          setCart(cartDoc.data().items || []);
+        }
+      } else {
+        setCart([]); // Clear cart if logged out
+      }
+    };
+    fetchCart();
+  }, [user]);
+
+  // Save cart to Firestore whenever it changes
+  const saveCart = async (newCart: CartItem[]) => {
+    setCart(newCart);
+    if (user) {
+      await setDoc(doc(db, 'carts', user.uid), { items: newCart });
+    }
   };
 
-  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [user]);
-
-  const add = async (productId: string, quantity = 1) => {
-    const { data } = await api.post<Cart>('/cart/add', { productId, quantity });
-    setCart(data);
-  };
-  const update = async (productId: string, quantity: number) => {
-    const { data } = await api.put<Cart>(`/cart/item/${productId}`, { quantity });
-    setCart(data);
-  };
-  const remove = async (productId: string) => {
-    const { data } = await api.delete<Cart>(`/cart/item/${productId}`);
-    setCart(data);
+  const addToCart = (product: any) => {
+    const existing = cart.find(item => item.id === product.id);
+    let newCart;
+    if (existing) {
+      newCart = cart.map(item => 
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      );
+    } else {
+      newCart = [...cart, { ...product, quantity: 1 }];
+    }
+    saveCart(newCart);
   };
 
-  const itemCount = cart?.items.reduce((s, i) => s + i.quantity, 0) ?? 0;
+  const removeFromCart = (productId: string) => {
+    const newCart = cart.filter(item => item.id !== productId);
+    saveCart(newCart);
+  };
 
-  return <Ctx.Provider value={{ cart, add, update, remove, refresh, itemCount }}>{children}</Ctx.Provider>;
+  const clearCart = () => saveCart([]);
+
+   // 2. Calculate total item count (sum of all quantities)
+  const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
+
+  return (
+    // 3. Add itemCount to the provider value
+    <CartContext.Provider value={{ cart, addToCart, removeFromCart, clearCart, itemCount }}>
+      {children}
+    </CartContext.Provider>
+  );
 };
 
-export const useCart = () => useContext(Ctx);
+export const useCart = () => {
+  const context = useContext(CartContext);
+  if (!context) throw new Error("useCart must be used within CartProvider");
+  return context;
+};

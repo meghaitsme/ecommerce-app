@@ -1,171 +1,71 @@
-import { useEffect, useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { useCart } from '../../context/CartContext';
-import './Sidebar.css';
 
 export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState<boolean>(
-    () => localStorage.getItem('sidebarCollapsed') === 'true'
-  );
-  const [mobileOpen, setMobileOpen] = useState(false);
-
   const { user, logout } = useAuth();
-  const { itemCount } = useCart();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    localStorage.setItem('sidebarCollapsed', String(collapsed));
-  }, [collapsed]);
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
-  };
-
-  const closeMobile = () => setMobileOpen(false);
 
   return (
-    <>
-      <button
-        className="sidebar-mobile-toggle"
-        onClick={() => setMobileOpen(true)}
-        aria-label="Open menu"
-      >
-        <i className="bx bx-menu" />
-      </button>
+    <aside className="sidebar" style={{ width: '250px', background: '#0f172a', color: 'white', display: 'flex', flexDirection: 'column' }}>
+      
+      {/* 1. Logo Area */}
+      <div className="sidebar-logo" style={{ padding: '20px', borderBottom: '1px solid #334155' }}>
+        <h2 style={{ margin: 0 }}>ShopFree</h2>
+      </div>
 
-      <nav
-        className={`sidebar ${collapsed ? 'collapsed' : ''} ${mobileOpen ? 'active' : ''}`}
-      >
-        <div className="logo-details">
-          <img src="/logo.svg" alt="ShopFree" className="brand-logo" />
-          <span className="logo_name">ShopFree</span>
-          <i
-            className="bx bx-menu"
-            id="btn-toggle"
-            onClick={() => setCollapsed((c) => !c)}
-          />
-        </div>
+      {/* 2. Navigation Links */}
+      <nav className="sidebar-nav" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '5px', padding: '20px' }}>
+        <Link to="/" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Home</Link>
+        <Link to="/profile" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Profile</Link>
+        <Link to="/services" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Services</Link>
+        <Link to="/contact" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Contact Us</Link>
 
-        <ul className="nav-list">
-          {/* ---------- Front of house ---------- */}
-          <li>
-            <NavLink to="/" end onClick={closeMobile}>
-              <i className="bx bx-home-alt" />
-              <span className="link_name">Home</span>
-            </NavLink>
-            <span className="tooltip">Home</span>
-          </li>
+        {/* Show Admin links ONLY if logged in */}
+        {user && (
+          <>
+            <hr style={{ borderColor: '#334155', margin: '10px 0', width: '100%' }} />
+            <p style={{ fontSize: '12px', color: '#94a3b8', margin: '0 0 5px 10px' }}>ADMIN</p>
+            
+            {/* 🚨 Dashboard Link belongs here */}
+            <Link to="/admin/dashboard" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Dashboard</Link>
+            <Link to="/admin/products" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Products</Link>
+            <Link to="/admin/AdminOrders" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Orders</Link>
+            <Link to="/admin/messages" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Messages</Link>
+          </>
+        )}
 
-          <li>
-            <NavLink to="/profile" onClick={closeMobile}>
-              <i className="bx bx-user" />
-              <span className="link_name">Profile</span>
-            </NavLink>
-            <span className="tooltip">Profile</span>
-          </li>
-
-          <li>
-            <NavLink to="/services" onClick={closeMobile}>
-              <i className="bx bx-briefcase" />
-              <span className="link_name">Services</span>
-            </NavLink>
-            <span className="tooltip">Services</span>
-          </li>
-
-          <li>
-            <NavLink to="/contact" onClick={closeMobile}>
-              <i className="bx bx-envelope" />
-              <span className="link_name">Contact Us</span>
-            </NavLink>
-            <span className="tooltip">Contact Us</span>
-          </li>
-
-          <li className="nav-divider" aria-hidden="true" />
-
-          {/* ---------- Store ---------- */}
-          <li>
-            <NavLink to="/dashboard" onClick={closeMobile}>
-              <i className="bx bx-grid-alt" />
-              <span className="link_name">Dashboard</span>
-            </NavLink>
-            <span className="tooltip">Dashboard</span>
-          </li>
-
-          <li>
-            <NavLink to="/products" onClick={closeMobile}>
-              <i className="bx bx-store" />
-              <span className="link_name">Products</span>
-            </NavLink>
-            <span className="tooltip">Products</span>
-          </li>
-
-          <li>
-            <NavLink to="/cart" onClick={closeMobile}>
-              <i className="bx bx-cart" />
-              <span className="link_name">Cart</span>
-              {itemCount > 0 && <span className="badge">{itemCount}</span>}
-            </NavLink>
-            <span className="tooltip">Cart</span>
-          </li>
-
-          <li>
-            <NavLink to="/orders" onClick={closeMobile}>
-              <i className="bx bx-package" />
-              <span className="link_name">Orders</span>
-              {user && <span className="badge-dot" />}
-            </NavLink>
-            <span className="tooltip">Orders</span>
-          </li>
-
-          <li>
-            <NavLink to="/wishlist" onClick={closeMobile}>
-              <i className="bx bx-heart" />
-              <span className="link_name">Wishlist</span>
-            </NavLink>
-            <span className="tooltip">Wishlist</span>
-          </li>
-
-          {user?.role === 'admin' && (
-            <li>
-              <NavLink to="/admin/products" onClick={closeMobile}>
-                <i className="bx bx-line-chart" />
-                <span className="link_name">Admin</span>
-              </NavLink>
-              <span className="tooltip">Admin</span>
-            </li>
-          )}
-
-          <li>
-            <a
-              href="#logout"
-              onClick={(e) => {
-                e.preventDefault();
-                closeMobile();
-                handleLogout();
-              }}
-            >
-              <i className="bx bx-log-out" />
-              <span className="link_name">Logout</span>
-            </a>
-            <span className="tooltip">Logout</span>
-          </li>
-        </ul>
-
-        <div className="profile-details">
-          <img
-            src={`https://i.pravatar.cc/100?u=${user?.email || 'guest'}`}
-            alt="profile"
-          />
-          <div className="profile_info">
-            <div className="profile_name">{user?.name || 'Guest'}</div>
-            <div className="job">{user?.role || 'Visitor'}</div>
-          </div>
-        </div>
+        <hr style={{ borderColor: '#334155', margin: '10px 0', width: '100%' }} />
+        
+        <Link to="/cart" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Cart</Link>
+        <Link to="/wishlist" style={{ color: 'white', textDecoration: 'none', padding: '10px', borderRadius: '5px' }}>Wishlist</Link>
       </nav>
 
-      {mobileOpen && <div className="sidebar-backdrop" onClick={closeMobile} />}
-    </>
+      {/* 3. User Profile (Bottom) */}
+      <div className="sidebar-user" style={{ padding: '20px', display: 'flex', alignItems: 'center', gap: '10px', borderTop: '1px solid #334155' }}>
+        <img 
+          src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100" 
+          alt="User" 
+          style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} 
+        />
+        <div style={{ flex: 1 }}>
+          <h4 style={{ margin: 0, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {user ? (user.displayName || user.email) : 'Guest'}
+          </h4>
+          <p style={{ margin: 0, fontSize: '12px', color: '#aaa' }}>
+            {user ? 'Admin' : 'Visitor'}
+          </p>
+        </div>
+        
+        {user && (
+          <button 
+            onClick={logout} 
+            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '20px' }}
+            title="Logout"
+          >
+            <i className="bx bx-log-out" />
+            ↪
+          </button>
+        )}
+      </div>
+    </aside>
   );
 }

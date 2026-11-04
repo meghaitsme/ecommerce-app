@@ -10,7 +10,10 @@ import authRoutes from './routes/auth.routes.js';
 import productRoutes from './routes/product.routes.js';
 import cartRoutes from './routes/cart.routes.js';
 import orderRoutes from './routes/order.routes.js';
+import couponRoutes from './routes/coupon.routes.js';
 import { errorHandler } from './middlewares/error.middleware.js';
+import { redeemCoupon } from './services/couponService.js';
+
 
 const app = express();
 app.use(cors());
@@ -22,6 +25,16 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/coupon', couponRoutes); // <-- ADD LINE
+app.post('/api/coupon/apply', async (req, res) => {
+  try {
+    const { code, userId, orderId, cartTotal } = req.body;
+    const result = await redeemCoupon(code, userId, orderId, cartTotal);
+    res.json({ success: true, discount: result.discount });
+  } catch (error: any) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+});
 
 app.use(errorHandler);
 

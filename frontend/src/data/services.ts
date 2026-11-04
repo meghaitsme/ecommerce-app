@@ -16,7 +16,7 @@ export const SERVICES: Service[] = [
     short: 'Free delivery on all orders above ₹999.',
     color: '#3b82f6',
     longDescription:
-      'We believe fast, free shipping should be the standard — not a premium add-on. Every ShopFree order above ₹999 ships free to anywhere in India, with tracking updated every step of the way.',
+      'We believe fast, free shipping should be the standard — not a premium add-on. Every ShopNova order above ₹999 ships free to anywhere in India, with tracking updated every step of the way.',
     features: [
       'Free on orders above ₹999',
       'Tracking updates in real-time',

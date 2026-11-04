@@ -1,123 +1,120 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
-  const { itemCount } = useCart();
+  const { user, logout, isAdmin } = useAuth();
+  const { itemCount } = useCart(); // Or whatever your cart count variable is
   const navigate = useNavigate();
+  
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    if (menuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
+  const handleLogout = async () => {
+    if (logout) {
+      await logout();
+      navigate('/login');
+      setIsMobileMenuOpen(false);
     }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [menuOpen]);
-
-  // Close on Escape
-  useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMenuOpen(false);
-    };
-    document.addEventListener('keydown', handleEsc);
-    return () => document.removeEventListener('keydown', handleEsc);
-  }, []);
-
-  const handleLogout = () => {
-    logout();
-    setMenuOpen(false);
-    navigate('/login');
   };
 
-  const closeMenu = () => setMenuOpen(false);
+  const closeMenu = () => setIsMobileMenuOpen(false);
+
+  // Reusable styles for links
+  const linkStyle = { color: 'white', textDecoration: 'none', fontWeight: 'bold', fontSize: '15px' };
+  const mobileLinkStyle = { ...linkStyle, display: 'block', padding: '12px 16px', borderBottom: '1px solid #1f2937' };
 
   return (
-    <nav className="navbar">
-      <Link to="/" className="brand"><img src="/logo.svg" alt="" className="brand-logo-sm" /><span>ShopFree</span></Link>
+    <nav style={{ backgroundColor: '#0f172a', padding: '16px 24px', color: 'white', fontFamily: 'sans-serif', position: 'sticky', top: 0, zIndex: 1000 }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        
+        {/* LOGO */}
+        <Link to="/" onClick={closeMenu} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '24px', fontWeight: 'bold', color: 'white' }}>⚡ ShopNova</span>
+        </Link>
 
-      <div className="nav-links">
-        <Link to="/cart">Cart ({itemCount})</Link>
+        {/* DESKTOP MENU */}
+        <div style={{ display: 'flex', gap: '24px', alignItems: 'center' }} className="desktop-menu">
+          
+          <Link to="/wishlist" style={linkStyle}>❤️ Wishlist</Link>
+          <Link to="/cart" style={linkStyle}>Cart ({itemCount || 0})</Link>
 
-        {user?.role === 'admin' && (
-          <>
-            <Link to="/admin/products">Products</Link>
-            <Link to="/admin/orders">Orders</Link>
-          </>
-        )}
+          {isAdmin && (
+            <>
+            
+              <Link to="/admin/dashboard" style={linkStyle}>Dashboard</Link>
+              <Link to="/admin/messages" style={linkStyle}>Messages</Link>
+              <Link to="/admin/products" style={linkStyle}>Manage Products</Link>
+              <Link to="/admin/AdminOrders" style={linkStyle}>Orders</Link>
+              <Link to="/admin/coupons" style={linkStyle}>Coupons</Link>
+              <Link to="/admin/users" style={linkStyle}>Users</Link>
+              <Link to="/admin/reviews" style={linkStyle}>Reviews</Link>
+              <Link to="/admin/subscribers" style={linkStyle}>Subscribers</Link>
+              <Link to="/contact" style={linkStyle}>Contact Us</Link>
+              
+            </>
+          )}
 
-        {/* ---------- Settings dropdown ---------- */}
-        <div className="nav-dropdown" ref={menuRef}>
-          <button
-            className={`nav-settings ${menuOpen ? 'open' : ''}`}
-            onClick={() => setMenuOpen((o) => !o)}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-          >
-            <i className="bx bx-cog" />
-            <span>Settings</span>
-            <i className={`bx bx-chevron-down dropdown-arrow ${menuOpen ? 'rotate' : ''}`} />
-          </button>
-
-          {menuOpen && (
-            <div className="dropdown-menu" role="menu">
-              <Link to="/profile" className="dropdown-item" onClick={closeMenu}>
-                <i className="bx bx-user" />
-                <span>My Profile</span>
-              </Link>
-              <Link to="/settings/account" className="dropdown-item" onClick={closeMenu}>
-                <i className="bx bx-cog" />
-                <span>Account Settings</span>
-              </Link>
-              <Link to="/settings/notifications" className="dropdown-item" onClick={closeMenu}>
-                <i className="bx bx-bell" />
-                <span>Notifications</span>
-              </Link>
-              <Link to="/settings/payment" className="dropdown-item" onClick={closeMenu}>
-                <i className="bx bx-credit-card" />
-                <span>Payment Methods</span>
-              </Link>
-              <Link to="/settings/privacy" className="dropdown-item" onClick={closeMenu}>
-                <i className="bx bx-shield-quarter" />
-                <span>Privacy</span>
-              </Link>
-
-              <div className="dropdown-divider" />
-
-              {user ? (
-                <button className="dropdown-item danger" onClick={handleLogout}>
-                  <i className="bx bx-log-out" />
-                  <span>Logout</span>
-                </button>
-              ) : (
-                <Link to="/login" className="dropdown-item" onClick={closeMenu}>
-                  <i className="bx bx-log-in" />
-                  <span>Login</span>
-                </Link>
-              )}
+          {user ? (
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginLeft: '16px', borderLeft: '1px solid #334155', paddingLeft: '16px' }}>
+              <Link to="/profile" style={linkStyle}>Hi, {user.email?.split('@')[0]}</Link>
+              <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: 'bold', cursor: 'pointer', fontSize: '15px' }}>Logout</button>
             </div>
+          ) : (
+            <Link to="/login" style={{ ...linkStyle, backgroundColor: '#2563eb', padding: '8px 16px', borderRadius: '6px' }}>Login</Link>
           )}
         </div>
 
-        {/* ---------- User name / Login links ---------- */}
-        {user ? (
-          <span className="user-name">Hi, {user.name}</span>
-        ) : (
-          <>
-            <Link to="/login">Login</Link>
-            <Link to="/register">Register</Link>
-          </>
-        )}
+        {/* MOBILE MENU BUTTON (Hamburger) */}
+        <button 
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          style={{ display: 'none', background: 'none', border: 'none', color: 'white', fontSize: '28px', cursor: 'pointer' }}
+          className="mobile-menu-btn"
+        >
+          ☰
+        </button>
       </div>
+
+      {/* MOBILE DROPDOWN MENU */}
+      {isMobileMenuOpen && (
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: '16px', backgroundColor: '#1e293b', borderRadius: '8px', overflow: 'hidden' }} className="mobile-dropdown">
+          <Link to="/wishlist" onClick={closeMenu} style={mobileLinkStyle}>❤️ Wishlist</Link>
+          <Link to="/cart" onClick={closeMenu} style={mobileLinkStyle}>Cart ({itemCount || 0})</Link>
+
+          {isAdmin && (
+            <>
+              <Link to="/admin/dashboard" onClick={closeMenu} style={mobileLinkStyle}>Dashboard</Link>
+              <Link to="/admin/products" onClick={closeMenu} style={mobileLinkStyle}>Manage Products</Link>
+              <Link to="/admin/AdminOrders" onClick={closeMenu} style={mobileLinkStyle}>Orders</Link>
+              <Link to="/admin/coupons" onClick={closeMenu} style={mobileLinkStyle}>Coupons</Link>
+              <Link to="/admin/users" onClick={closeMenu} style={mobileLinkStyle}>Users</Link>
+              
+            </>
+          )}
+
+          {user ? (
+            <>
+              <Link to="/profile" onClick={closeMenu} style={mobileLinkStyle}>Hi, {user.email?.split('@')[0]}</Link>
+              <button onClick={handleLogout} style={{ ...mobileLinkStyle, background: 'none', border: 'none', textAlign: 'left', width: '100%', cursor: 'pointer', color: '#ef4444' }}>Logout</button>
+            </>
+          ) : (
+            <Link to="/login" onClick={closeMenu} style={mobileLinkStyle}>Login</Link>
+          )}
+        </div>
+      )}
+
+      {/* CSS for responsive behavior */}
+      <style>
+        {`
+          @media (max-width: 900px) {
+            .desktop-menu { display: none !important; }
+            .mobile-menu-btn { display: block !important; }
+          }
+          @media (min-width: 901px) {
+            .mobile-dropdown { display: none !important; }
+          }
+        `}
+      </style>
     </nav>
   );
 }

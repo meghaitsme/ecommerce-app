@@ -7,7 +7,7 @@ export default function Services() {
       <section className="services-hero">
         <h1>What We Offer</h1>
         <p>
-          ShopFree goes beyond just selling products — we make sure your
+          ShopNova goes beyond just selling products — we make sure your
           shopping experience is smooth, safe, and enjoyable.
         </p>
       </section>

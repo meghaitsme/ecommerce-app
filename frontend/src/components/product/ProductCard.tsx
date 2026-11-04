@@ -1,51 +1,100 @@
 import { Link } from 'react-router-dom';
-import { useCart } from '../../context/CartContext';
+import type { Product } from '../../types';
 import { formatPrice } from '../../utils/format';
 
-type Product = {
-  _id: string;
-  name: string;
-  category: string;
-  price: number;
-  image: string;
-};
-
 export default function ProductCard({ product }: { product: Product }) {
-  const { add } = useCart();
-
-  const handleAdd = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      await add(product._id, 1);
-      // Optional: brief feedback
-      alert(`Added "${product.name}" to cart`);
-    } catch (err: any) {
-      if (err?.response?.status === 401) {
-        alert('Please login to add to cart');
-      } else {
-        alert('Failed to add to cart. Please try again.');
-      }
+  
+  // 👈 ADD THE FUNCTION HERE (Inside the component, before return)
+  const addToWishlist = (e: React.MouseEvent) => {
+    e.preventDefault(); // Prevents the Link from triggering
+    
+    const currentWishlist = JSON.parse(localStorage.getItem('wishlist') || '[]');
+    
+    if (!currentWishlist.find((item: any) => item._id === product._id)) {
+      currentWishlist.push(product);
+      localStorage.setItem('wishlist', JSON.stringify(currentWishlist));
+      alert('Added to wishlist! ❤️');
+    } else {
+      alert('Already in wishlist!');
     }
   };
 
   return (
-    <Link to={`/product/${product._id}`} className="product-card">
-      <div className="product-image">
-        <img src={product.image} alt={product.name} />
+    <div style={{ 
+      backgroundColor: 'white',
+      borderRadius: '8px', 
+      overflow: 'hidden', 
+      boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+      transition: 'transform 0.2s, box-shadow 0.2s',
+      display: 'flex',
+      flexDirection: 'column',
+      position: 'relative' // 👈 ADD THIS: So the heart button stays inside the card
+    }}>
+      
+      {/* 🚨 HEART BUTTON GOES HERE (Above the image link) */}
+      <button 
+        onClick={addToWishlist}
+        style={{ 
+          position: 'absolute', 
+          top: '10px', 
+          right: '10px', 
+          background: 'white', 
+          border: 'none', 
+          borderRadius: '50%', 
+          padding: '8px', 
+          cursor: 'pointer', 
+          boxShadow: '0 2px 5px rgba(0,0,0,0.2)',
+          zIndex: 10 // 👈 Ensures it stays clickable above the image
+        }}
+      >
+        ❤️
+      </button>
+
+      {/* Image */}
+      <Link to={`/product/${product._id}`}>
+        <div style={{ height: '200px', overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px' }}>
+          <img 
+            src={product.image || "https://placehold.co/300x300?text=No+Image"} 
+            alt={product.name} 
+            style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} 
+          />
+        </div>
+      </Link>
+      
+      {/* Details */}
+      <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+        <Link to={`/product/${product._id}`} style={{ textDecoration: 'none', color: '#333' }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: '600', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {product.name}
+          </h3>
+        </Link>
+        
+        <p style={{ color: '#388e3c', fontSize: '13px', margin: '0 0 10px 0', fontWeight: 'bold' }}>
+          {product.category || 'General'}
+        </p>
+        
+        <div style={{ marginTop: 'auto' }}>
+          <p style={{ margin: '0 0 15px 0', fontWeight: 'bold', fontSize: '20px', color: '#212121' }}>
+            {formatPrice(product.price)}
+          </p>
+          <Link 
+            to={`/product/${product._id}`}
+            style={{ 
+              display: 'block', 
+              textAlign: 'center', 
+              backgroundColor: '#ff9f00', 
+              color: 'white', 
+              padding: '10px', 
+              textDecoration: 'none', 
+              borderRadius: '4px', 
+              fontWeight: 'bold',
+              fontSize: '14px'
+            }}
+          >
+            View Details
+          </Link>
+        </div>
       </div>
-      <div className="product-body">
-        <h3>{product.name}</h3>
-        <p className="product-category">{product.category}</p>
-        <p className="product-price">{formatPrice(product.price)}</p>
-        <button
-          className="btn-primary"
-          onClick={handleAdd}
-          style={{ width: '100%' }}
-        >
-          Add to Cart
-        </button>
-      </div>
-    </Link>
+    </div>
   );
 }

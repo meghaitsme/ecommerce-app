@@ -1,11 +1,22 @@
-import { StrictMode } from 'react';
-import { createRoot } from 'react-dom/client';
-import App from './App';
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App.tsx';
 import './index.css';
-import './pages-custom.css';
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
+// Import your providers
+import { AuthProvider } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
+import { ToastProvider } from './context/ToastContext'; // 👈 The new one we just created
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <React.StrictMode>
+    {/* The ToastProvider must go OUTSIDE the Auth/Cart providers so it can be used anywhere */}
+    <ToastProvider>
+      <AuthProvider>
+        <CartProvider>
+          <App />
+        </CartProvider>
+      </AuthProvider>
+    </ToastProvider>
+  </React.StrictMode>
 );
