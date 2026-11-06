@@ -26,7 +26,7 @@ export default function Wishlist() {
 
   useEffect(() => {
 
-    if (!user?.email) {
+    if (!user?.uid) {
       setWishlist([]);
       setLoading(false);
       return;
@@ -34,11 +34,9 @@ export default function Wishlist() {
 
     setLoading(true);
 
-    const userEmailLower = user.email.toLowerCase();
-
     const q = query(
       collection(db, 'wishlist'),
-      where('userEmail', '==', userEmailLower)
+      where('userId', '==', user.uid)
     );
 
     const unsubscribe = onSnapshot(
@@ -74,7 +72,7 @@ export default function Wishlist() {
 
     return () => unsubscribe();
 
-  }, [user?.email]);
+  }, [user?.uid]);
 
   // 2. Remove from Wishlist
 
@@ -88,14 +86,15 @@ export default function Wishlist() {
 
       console.log('Wishlist item removed');
 
-    } catch (error) {
+    } catch (error: any) {
+  console.error('Wishlist error:', error);
+  console.error('Error code:', error.code);
+  console.error('Error message:', error.message);
 
-      console.error(
-        'Error removing from wishlist:',
-        error
-      );
-
-    }
+  alert(
+    `Wishlist Error: ${error.code || error.message}`
+  );
+}
 
   };
 
@@ -103,22 +102,15 @@ export default function Wishlist() {
 
   const handleAddToCart = (item: any) => {
 
-    try {
+  addToCart({
+    ...item,
+    id: item.productId,
+    image: item.imageUrl
+  });
 
-      addToCart({
-        ...item,
-        id: item.productId
-      });
+  alert('Added to Cart!');
 
-      alert('Added to cart!');
-
-    } catch (error) {
-
-      console.error('Add to cart failed:', error);
-
-    }
-
-  };
+};
 
   // 4. Login Check
 

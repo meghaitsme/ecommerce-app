@@ -1,4 +1,8 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, {
+  Schema,
+  type Document,
+  type Model,
+} from 'mongoose';
 
 export interface IOrderItem {
   product: mongoose.Types.ObjectId;
@@ -51,4 +55,8 @@ const OrderSchema = new Schema<IOrder>(
   { timestamps: true }
 );
 
-export default mongoose.model<IOrder>('Order', OrderSchema);
+const Order: Model<IOrder> =
+  mongoose.models.Order ||
+  mongoose.model<IOrder>('Order', OrderSchema);
+
+export default Order;

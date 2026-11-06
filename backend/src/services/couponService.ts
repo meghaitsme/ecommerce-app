@@ -1,69 +1,69 @@
-import Coupon from "../models/Coupon";
-import Redemption from "../models/Redemption";
-import mongoose from "mongoose";
 
-async function connectDB(): Promise<void> {
-  if (mongoose.connection.readyState === 1) return;
+import Coupon from '../models/Coupon.js';
 
-  const uri = process.env.MONGODB_URI;
-  if (!uri) throw new Error("MONGODB_URI is not configured");
-
-  await mongoose.connect(uri);
+interface CouponResult {
+  discount: number;
 }
 
-export async function redeemCoupon(
+export async function validateCoupon(
   code: string,
-  userId: string,
-  orderId: string,
   cartTotal: number
-): Promise<{ discount: number }> {
-  await connectDB(); // <-- Connect to MongoDB
+): Promise<CouponResult> {
+  if (!code || !Number.isFinite(cartTotal) || cartTotal < 0) {
+    throw new Error('INVALID_COUPON_REQUEST');
+  }
 
-  const coupon = await Coupon.findOne({ code: code.trim().toUpperCase() });
-  if (!coupon || !coupon.active) throw new Error("INVALID_CODE");
+  const normalizedCode = code.trim().toUpperCase();
+
+  const coupon = await Coupon.findOne({
+    code: normalizedCode,
+    active: true,
+  });
+
+  if (!coupon) {
+    throw new Error('INVALID_CODE');
+  }
 
   const now = new Date();
-  if (now < coupon.startsAt || now > coupon.expiresAt) throw new Error("EXPIRED");
-  if (cartTotal < coupon.minCart) throw new Error("MIN_CART_NOT_MET");
 
-  // Atomic claim
-  const claim = await Coupon.findOneAndUpdate(
-    {
-      _id: coupon._id,
-      $expr: {
-        $or: [
-          { $eq: ["$maxUses", null] },
-          { $lt: [{ $ifNull: ["$usedCount", 0] }, "$maxUses"] },
-        ],
-      },
-    },
-    { $inc: { usedCount: 1 } },
-    { new: true }
-  );
-  if (!claim) throw new Error("USAGE_LIMIT_REACHED");
-
-  // Per-user check
-  const userUses = await Redemption.countDocuments({ couponId: coupon._id, userId });
-  if (coupon.maxUsesPerUser != null && userUses >= coupon.maxUsesPerUser) {
-    await Coupon.updateOne({ _id: coupon._id }, { $inc: { usedCount: -1 } });
-    throw new Error("USER_LIMIT_REACHED");
+  if (
+    (coupon.startsAt && now < coupon.startsAt) ||
+    (coupon.expiresAt && now > coupon.expiresAt)
+  ) {
+    throw new Error('EXPIRED');
   }
 
-  let discount = coupon.type === "percent" ? cartTotal * (coupon.value / 100) : coupon.value;
-  if (coupon.type === "percent" && coupon.maxDiscount != null) {
-    discount = Math.min(discount, coupon.maxDiscount);
+  if (cartTotal < Number(coupon.minCart || 0)) {
+    throw new Error('MIN_CART_NOT_MET');
   }
-  discount = Math.min(discount, cartTotal);
 
-  try {
-    await Redemption.create({ couponId: coupon._id, userId, orderId, discountApplied: discount });
-  } catch (e: any) {
-    if (e.code === 11000) {
-      await Coupon.updateOne({ _id: coupon._id }, { $inc: { usedCount: -1 } });
-      throw new Error("ALREADY_REDEEMED");
+  const value = Number(coupon.value);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error('INVALID_COUPON_CONFIGURATION');
+  }
+
+  let discount = 0;
+
+  if (coupon.type === 'percent') {
+    if (value > 100) {
+      throw new Error('INVALID_COUPON_CONFIGURATION');
     }
-    throw e;
+
+    discount = cartTotal * (value / 100);
+
+    if (coupon.maxDiscount != null) {
+      discount = Math.min(discount, Number(coupon.maxDiscount));
+    }
+  } else if (coupon.type === 'fixed') {
+    discount = value;
+  } else {
+    throw new Error('INVALID_COUPON_TYPE');
   }
 
-  return { discount };
+  discount = Math.max(0, Math.min(discount, cartTotal));
+
+  return {
+    discount: Number(discount.toFixed(2)),
+  };
 }

@@ -1,31 +1,80 @@
-import { Request, Response, NextFunction } from 'express';
-import { verifyToken } from '../utils/jwt';
+
+import type { Request, Response, NextFunction } from 'express';
+import { verifyToken } from '../utils/jwt.js';
 
 export interface AuthRequest extends Request {
-  user?: { id: string; role: string };
+  user?: {
+    id: string;
+    role: string;
+  };
 }
 
-export const authenticate = (req: AuthRequest, res: Response, next: NextFunction) => {
-  const header = req.headers.authorization;
-  if (!header?.startsWith('Bearer ')) {
-    return res.status(401).json({ message: 'No token provided' });
+export const authenticate = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
+  const authorization = req.headers.authorization;
+
+  if (!authorization || !authorization.startsWith('Bearer ')) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication required',
+    });
+    return;
   }
+
+  const token = authorization.slice(7).trim();
+
+  if (!token) {
+    res.status(401).json({
+      success: false,
+      message: 'Authentication token is missing',
+    });
+    return;
+  }
+
   try {
-    const token = header.split(' ')[1];
     const decoded = verifyToken(token);
-    req.user = { id: decoded.id, role: decoded.role };
+
+    if (
+      !decoded ||
+      typeof decoded.id !== 'string' ||
+      !decoded.id.trim()
+    ) {
+      res.status(401).json({
+        success: false,
+        message: 'Invalid authentication token',
+      });
+      return;
+    }
+
+    req.user = {
+      id: decoded.id,
+      role: typeof decoded.role === 'string' ? decoded.role : 'user',
+    };
+
     next();
-  } catch (error: any) {
-    // 🚨 ADD THIS LINE to see the error in your backend terminal
-    console.error("JWT Error:", error.message);
-    return res.status(401).json({ message: 'Invalid token' });
+  } catch {
+    res.status(401).json({
+      success: false,
+      message: 'Invalid or expired authentication token',
+    });
   }
 };
 
-export const isAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
-  // 🚨 FIX: Lowercase 'admin'
+export const isAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+): void => {
   if (req.user?.role?.toLowerCase() !== 'admin') {
-    return res.status(403).json({ message: 'Admin access required' });
+    res.status(403).json({
+      success: false,
+      message: 'Admin access required',
+    });
+    return;
   }
+
   next();
 };

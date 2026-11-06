@@ -10,16 +10,32 @@ const getCartQuery = (req: Request) => {
   return userId ? { user: userId } : { guestId };
 };
 
+
 export const getCart = async (req: Request, res: Response) => {
   try {
     const query = getCartQuery(req);
-    if (!query) return res.status(200).json({ items: [], total: 0 });
+
+    if (!query) {
+      return res.status(200).json({
+        items: [],
+        total: 0,
+      });
+    }
+
     const cart = await Cart.findOne(query).populate('items.product');
-    return res.status(200).json(cart ?? { items: [], total: 0 });
+
+    return res.status(200).json(
+      cart ?? { items: [], total: 0 }
+    );
   } catch (error) {
-    return res.status(500).json({ message: 'Error fetching cart' });
+    console.error('Get cart error:', error);
+
+    return res.status(500).json({
+      message: 'Error fetching cart',
+    });
   }
 };
+
 
 export const add = async (req: Request, res: Response) => {
   try {
