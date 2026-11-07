@@ -382,25 +382,36 @@ const Checkout = () => {
       );
 
       const orderData = {
-        userId: user.uid,
-        customerEmail: user.email || '',
-        items: cart.map((item) => ({
-          id: item.id,
-          name: item.name,
-          price: item.price,
-          image: item.image,
-          quantity: item.quantity
-        })),
-        subtotal,
-        shipping,
-        discountApplied: verifiedDiscount,
-        couponUsed: verifiedCoupon,
-        totalAmount: verifiedTotal,
-        shippingAddress: address.trim(),
-        phoneNumber: phone.replace(/[\s-]/g, ''),
-        status: 'Pending',
-        createdAt: serverTimestamp()
-      };
+  userId: user.uid,
+  customerEmail: user.email || '',
+
+  items: cart.map((item) => ({
+    id: item.id,
+    name: item.name,
+    price: item.price,
+    image: item.image,
+    quantity: item.quantity
+  })),
+
+  subtotal,
+  shipping,
+  discountApplied: verifiedDiscount,
+  couponUsed: verifiedCoupon,
+  totalAmount: verifiedTotal,
+
+  shippingAddress: address.trim(),
+  phoneNumber: phone.replace(/[\s-]/g, ''),
+
+  // Order status
+  status: 'Pending',
+
+  // Order date and timestamp
+  createdAt: serverTimestamp(),
+  orderDate: new Date().toISOString()
+};
+
+// Save order to Firebase
+await addDoc(collection(db, 'orders'), orderData);
 
       // IMPORTANT:
       // This is a transitional client-side order write.

@@ -1,74 +1,249 @@
-import React, { useState } from 'react';
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "../../data/firebase"; // Make sure this path points to your firebase config!
-import { doc, setDoc } from "firebase/firestore";
+
+import { useState } from 'react';
+import type { FormEvent } from 'react';
+
+import { Link, useNavigate } from 'react-router-dom';
+
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 
 const Register = () => {
+
+  const navigate = useNavigate();
+
+  const { register } = useAuth();
+
+  const { showToast } = useToast();
+
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault(); // Stops the page from refreshing
-    
+  const [loading, setLoading] = useState(false);
+
+  // =====================================
+  // HANDLE REGISTRATION
+  // =====================================
+
+  const handleRegister = async (
+    e: FormEvent<HTMLFormElement>
+  ) => {
+
+    e.preventDefault();
+
+    if (password !== confirmPassword) {
+
+      showToast(
+        'Passwords do not match!',
+        'error'
+      );
+
+      return;
+    }
+
+    if (password.length < 6) {
+
+      showToast(
+        'Password must contain at least 6 characters.',
+        'error'
+      );
+
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      // 1. Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
 
-      // 2. Save user details to Firestore database
-      await setDoc(doc(db, "users", user.uid), {
-        email: email,
-        role: "customer",
-        createdAt: new Date()
-      });
+      await register(
+        name.trim(),
+        email.trim(),
+        password
+      );
 
-      setMessage("Registration successful! You can now log in.");
-      setEmail('');
-      setPassword('');
-      
-    } catch (error: any) {
-      console.error("Error connecting to Firebase:", error);
-      // Firebase returns clean error messages (e.g., "Password should be at least 6 characters")
-      setMessage(error.message || "Registration failed"); 
+      showToast(
+        'Registration successful!',
+        'success'
+      );
+
+      navigate('/');
+
+    } catch (error: unknown) {
+
+      console.error('Registration error:', error);
+
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Registration failed';
+
+      showToast(message, 'error');
+
+    } finally {
+
+      setLoading(false);
+
     }
   };
 
   return (
-    <div style={{ padding: '20px', maxWidth: '400px', margin: '0 auto' }}>
-      <h2>Register for ShopNova</h2>
-      
-      <form onSubmit={handleRegister}>
-        <div style={{ marginBottom: '10px' }}>
-          <label>Email:</label><br/>
-          <input 
-            type="email" 
-            value={email} 
-            onChange={(e) => setEmail(e.target.value)} 
-            required 
-            style={{ width: '100%', padding: '8px' }}
+
+    <div style={{
+      padding: '20px',
+      maxWidth: '400px',
+      margin: '40px auto',
+      backgroundColor: 'white',
+      borderRadius: '8px',
+      boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
+    }}>
+
+      <h2 style={{
+        textAlign: 'center',
+        marginBottom: '25px'
+      }}>
+        Register for ShopFree
+      </h2>
+
+      <form
+        onSubmit={handleRegister}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '15px'
+        }}
+      >
+
+        {/* NAME */}
+
+        <div>
+
+          <label>Full Name</label>
+
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            required
+            placeholder="Enter your name"
+            style={{
+              width: '100%',
+              padding: '10px',
+              marginTop: '5px',
+              boxSizing: 'border-box'
+            }}
           />
+
         </div>
 
-        <div style={{ marginBottom: '10px' }}>
-          <label>Password (min 6 chars):</label><br/>
-          <input 
-            type="password" 
-            value={password} 
-            onChange={(e) => setPassword(e.target.value)} 
-            minLength={6} // Firebase requires at least 6 characters
-            required 
-            style={{ width: '100%', padding: '8px' }}
+        {/* EMAIL */}
+
+        <div>
+
+          <label>Email Address</label>
+
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            required
+            placeholder="Enter your email"
+            style={{
+              width: '100%',
+              padding: '10px',
+              marginTop: '5px',
+              boxSizing: 'border-box'
+            }}
           />
+
         </div>
 
-        <button type="submit" style={{ padding: '10px 20px', cursor: 'pointer' }}>
-          Register
+        {/* PASSWORD */}
+
+        <div>
+
+          <label>Password</label>
+
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            minLength={6}
+            required
+            placeholder="Minimum 6 characters"
+            style={{
+              width: '100%',
+              padding: '10px',
+              marginTop: '5px',
+              boxSizing: 'border-box'
+            }}
+          />
+
+        </div>
+
+        {/* CONFIRM PASSWORD */}
+
+        <div>
+
+          <label>Confirm Password</label>
+
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={e => setConfirmPassword(e.target.value)}
+            minLength={6}
+            required
+            placeholder="Confirm your password"
+            style={{
+              width: '100%',
+              padding: '10px',
+              marginTop: '5px',
+              boxSizing: 'border-box'
+            }}
+          />
+
+        </div>
+
+        {/* SUBMIT */}
+
+        <button
+          type="submit"
+          disabled={loading}
+          style={{
+            padding: '12px',
+            backgroundColor: loading ? '#9ca3af' : '#10b981',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            fontWeight: 'bold',
+            cursor: loading ? 'not-allowed' : 'pointer'
+          }}
+        >
+          {loading ? 'Registering...' : 'Create Account'}
         </button>
+
+        <p style={{
+          textAlign: 'center',
+          fontSize: '14px',
+          color: '#6b7280'
+        }}>
+          Already have an account?{' '}
+
+          <Link
+            to="/login"
+            style={{
+              color: '#2563eb',
+              fontWeight: 'bold',
+              textDecoration: 'none'
+            }}
+          >
+            Login
+          </Link>
+
+        </p>
+
       </form>
 
-      {/* Show success or error message */}
-      {message && <p style={{ marginTop: '15px', color: message.includes('successful') ? 'green' : 'red' }}>{message}</p>}
     </div>
   );
 };

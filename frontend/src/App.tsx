@@ -1,5 +1,7 @@
-﻿import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+﻿
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { CartProvider } from './context/CartContext';
 
 // Components
 import Navbar from './components/common/Navbar';
@@ -17,9 +19,6 @@ import Checkout from './pages/customer/Checkout';
 import OrderSuccess from './pages/customer/OrderSuccess';
 import Wishlist from './pages/customer/Wishlist';
 import Contact from './pages/customer/Contact';
-
-// We don't need OrderHistory anymore since it's inside Profile, 
-// but I left the import in case you still want a separate page.
 import OrderHistory from './pages/customer/OrderHistory';
 import Invoice from './pages/customer/Invoice';
 
@@ -36,15 +35,23 @@ import AdminSubscribers from './pages/admin/AdminSubscribers';
 import AdminMessages from './pages/admin/AdminMessages';
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
+const { user, loading, isAdmin } = useAuth();
 
   if (loading) {
-    return <div style={{ padding: '50px', textAlign: 'center' }}>Loading...</div>;
+    return (
+      <div style={{ padding: '50px', textAlign: 'center' }}>
+        Loading...
+      </div>
+    );
   }
 
-  const isAdmin = Boolean(user && 'isAdmin' in user && user.isAdmin);
-
-  console.log("👤 [App] Current User:", user?.email, "| Is Admin:", isAdmin);
+  // DEBUG LOGS
+console.log('========== ADMIN DEBUG ==========');
+console.log('Current User:', user);
+console.log('User Email:', user?.email);
+console.log('Is Admin:', isAdmin);
+console.log('User Role:', user?.role);
+console.log('=================================');
 
   return (
     <Routes>
@@ -60,25 +67,71 @@ function AppRoutes() {
       <Route path="/order-success" element={<OrderSuccess />} />
       <Route path="/wishlist" element={<Wishlist />} />
       <Route path="/contact" element={<Contact />} />
-      
+
       {/* CUSTOMER ORDER ROUTES */}
       <Route path="/orders" element={<OrderHistory />} />
       <Route path="/invoice/:id" element={<Invoice />} />
 
       {/* PROTECTED ADMIN ROUTES */}
-      <Route path="/admin/add-product" element={isAdmin ? <AddProduct /> : <Navigate to="/login" />} />
-      <Route path="/admin/dashboard" element={isAdmin ? <Dashboard /> : <Navigate to="/login" />} />
-      <Route path="/admin/users" element={isAdmin ? <AdminUsers /> : <Navigate to="/login" />} />
-      <Route path="/admin/products" element={isAdmin ? <AdminProducts /> : <Navigate to="/login" />} />
-      <Route path="/admin/coupons" element={isAdmin ? <AdminCoupons /> : <Navigate to="/login" />} />
-      
-      {/* We only need AdminOrders once, and only for admins */}
-      <Route path="/admin/orders" element={isAdmin ? <AdminOrders /> : <Navigate to="/login" />} />
-      <Route path="/admin/reviews" element={isAdmin ? <AdminReviews /> : <Navigate to="/login" />} />
-      <Route path="/admin/subscribers" element={isAdmin ? <AdminSubscribers /> : <Navigate to="/login" />} />
-      <Route path="/admin/edit-product/:id" element={isAdmin ? <EditProduct /> : <Navigate to="/login" />} />
-      
-      <Route path="/admin/messages" element={isAdmin ? <AdminMessages /> : <Navigate to="/login" />} />
+      <Route
+        path="/admin/add-product"
+        element={isAdmin ? <AddProduct /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/dashboard"
+        element={isAdmin ? <Dashboard /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/users"
+        element={isAdmin ? <AdminUsers /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/products"
+        element={isAdmin ? <AdminProducts /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/coupons"
+        element={isAdmin ? <AdminCoupons /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/orders"
+        element={isAdmin ? <AdminOrders /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/reviews"
+        element={isAdmin ? <AdminReviews /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/subscribers"
+        element={isAdmin ? <AdminSubscribers /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/edit-product/:id"
+        element={isAdmin ? <EditProduct /> : <Navigate to="/login" replace />}
+      />
+
+      <Route
+        path="/admin/messages"
+        element={isAdmin ? <AdminMessages /> : <Navigate to="/login" replace />}
+      />
+
+      {/* OLD URL REDIRECT */}
+      <Route
+        path="/admin/AdminOrders"
+        element={<Navigate to="/admin/orders" replace />}
+      />
+
+      {/* FALLBACK */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+
     </Routes>
   );
 }
@@ -86,9 +139,11 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <ScrollToTop />
-      <Navbar />
-      <AppRoutes />
+      <CartProvider>
+        <ScrollToTop />
+        <Navbar />
+        <AppRoutes />
+      </CartProvider>
     </BrowserRouter>
   );
 }

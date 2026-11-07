@@ -1,13 +1,39 @@
 ﻿import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+
+import {
+  Link,
+  useNavigate
+} from 'react-router-dom';
+
+import {
+  updateProfile
+} from 'firebase/auth';
+
+import {
+  doc,
+  updateDoc,
+  collection,
+  query,
+  where,
+  orderBy,
+  onSnapshot,
+  increment
+} from 'firebase/firestore';
+
 import { db } from '../../data/firebase';
-import { updateProfile } from 'firebase/auth';
+
 import { useAuth } from '../../context/AuthContext';
+
 import { useToast } from '../../context/ToastContext';
-import { collection, query, where, onSnapshot, orderBy, doc, updateDoc, increment, setDoc } from 'firebase/firestore';
+
 
 export default function Profile() {
-  const { user, logout } = useAuth(); 
+const {
+  user,
+  firebaseUser,
+  refreshUser,
+  logout
+} = useAuth();
   const navigate = useNavigate();
   const { showToast } = useToast();
 
@@ -48,35 +74,82 @@ export default function Profile() {
     return () => unsubscribe();
   }, [user]);
 
-  const handleLogout = async () => {
-    if (logout) {
-      await logout();
-      navigate('/login');
-    }
-  };
+ const handleLogout = async () => {
 
-  const handleUpdateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) return;
+  try {
 
-    setIsUpdating(true);
-    try {
-      await updateProfile(user, { displayName });
-      const userRef = doc(db, 'users', user.uid);
-      await setDoc(userRef, { 
-        email: user.email,
-        displayName: displayName,
-        phone: phone 
-      }, { merge: true });
+    await logout();
 
-      showToast("Profile updated successfully!", "success");
-    } catch (err: any) {
-      console.error("Error updating profile:", err);
-      showToast("Failed to update profile.", "error");
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+    showToast('Logged out successfully!', 'success');
+
+    navigate('/login');
+
+  } catch (error) {
+
+    console.error('Logout error:', error);
+
+    showToast('Failed to logout.', 'error');
+
+  }
+};
+
+  const handleUpdateProfile = async (
+  e: React.FormEvent<HTMLFormElement>
+) => {
+
+  e.preventDefault();
+
+  if (!firebaseUser) {
+    showToast('Please login first.', 'error');
+    return;
+  }
+
+  if (!displayName.trim()) {
+    showToast('Name cannot be empty.', 'error');
+    return;
+  }
+
+  setIsUpdating(true);
+
+  try {
+
+    // Update Firebase Authentication
+    await updateProfile(firebaseUser, {
+      displayName: displayName.trim()
+    });
+
+    // Update Firestore document
+    await updateDoc(
+      doc(db, 'users', firebaseUser.uid),
+      {
+        name: displayName.trim(),
+        displayName: displayName.trim()
+      }
+    );
+
+    // Refresh AuthContext
+    await refreshUser();
+
+    showToast(
+      'Profile updated successfully!',
+      'success'
+    );
+
+  } catch (error) {
+
+    console.error('Profile update error:', error);
+
+    showToast(
+      'Failed to update profile.',
+      'error'
+    );
+
+  } finally {
+
+    setIsUpdating(false);
+
+  }
+};
 
   const handleCancelOrder = async (orderId: string, items: any[]) => {
     if (!window.confirm("Are you sure you want to cancel this order?")) return;

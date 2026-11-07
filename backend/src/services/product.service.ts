@@ -1,44 +1,186 @@
-import Product from '../models/Product.model';
-import mongoose from 'mongoose';
-// Make sure you import your Product model at the top if it isn't already
-// import Product from '../models/Product'; 
 
+import {
+  FieldValue,
+  type Query,
+  type DocumentData,
+} from 'firebase-admin/firestore';
+
+import { db } from '../config/firebase-admin';
+
+const PRODUCTS_COLLECTION = 'products';
+
+// Get a single product by ID
 export const getProduct = async (id: string) => {
-  // 1. Check if the ID is a valid MongoDB 24-character ID
-  if (!mongoose.Types.ObjectId.isValid(id)) {
-    throw new Error("Invalid Product ID format");
+  if (!id || typeof id !== 'string') {
+    throw {
+      status: 400,
+      message: 'Invalid Product ID',
+    };
   }
 
-  // 2. Fetch the product safely
-  const product = await Product.findById(id);
-  
-  if (!product) {
-    throw new Error("Product not found");
+  const productRef = db.collection(PRODUCTS_COLLECTION).doc(id);
+  const snapshot = await productRef.get();
+
+  if (!snapshot.exists) {
+    throw {
+      status: 404,
+      message: 'Product not found',
+    };
   }
 
-  return product;
+  return {
+    id: snapshot.id,
+    _id: snapshot.id,
+    ...snapshot.data(),
+  };
 };
 
-export const listProducts = async (filter: any = {}, page = 1, limit = 12) => {
+// Get all products with pagination, filtering and sorting
+export const listProducts = async (
+  filter: Record<string, any> = {},
+  page = 1,
+  limit = 12
+) => {
+  page = Math.max(1, Number(page) || 1);
+  limit = Math.min(100, Math.max(1, Number(limit) || 12));
+
   const skip = (page - 1) * limit;
-  const [items, total] = await Promise.all([
-    Product.find(filter).skip(skip).limit(limit),
-    Product.countDocuments(filter),
-  ]);
-  return { items, total, page, pages: Math.ceil(total / limit) };
+
+  let query: Query<DocumentData> =
+    db.collection(PRODUCTS_COLLECTION);
+
+  // Apply equality filters
+  Object.entries(filter).forEach(([field, value]) => {
+    if (value !== undefined && value !== null && value !== '') {
+      query = query.where(field, '==', value);
+    }
+  });
+
+  // Get total matching products
+  const countSnapshot = await query.count().get();
+  const total = countSnapshot.data().count;
+
+  // Fetch paginated products
+  const snapshot = await query
+    .orderBy('createdAt', 'desc')
+    .offset(skip)
+    .limit(limit)
+    .get();
+
+ const items = snapshot.docs.map((productDoc) => {
+  return {
+    id: productDoc.id,
+    _id: productDoc.id,
+    ...productDoc.data(),
+  };
+});
+
+  return {
+    items,
+    total,
+    page,
+    limit,
+    pages: Math.ceil(total / limit),
+  };
 };
 
-export const createProduct = async (data: any, userId: string) =>
-  Product.create({ ...data, createdBy: userId });
+// Create a new product
+export const createProduct = async (
+  data: Record<string, any>,
+  userId: string
+) => {
+  if (!userId) {
+    throw {
+      status: 401,
+      message: 'User ID is required',
+    };
+  }
 
-export const updateProduct = async (id: string, data: any) => {
-  const p = await Product.findByIdAndUpdate(id, data, { new: true });
-  if (!p) throw { status: 404, message: 'Product not found' };
-  return p;
+  const productData = {
+    ...data,
+    createdBy: userId,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+
+  const productRef = await db
+    .collection(PRODUCTS_COLLECTION)
+    .add(productData);
+
+  const snapshot = await productRef.get();
+
+  return {
+    id: productRef.id,
+    _id: productRef.id,
+    ...snapshot.data(),
+  };
 };
 
+// Update an existing product
+export const updateProduct = async (
+  id: string,
+  data: Record<string, any>
+) => {
+  if (!id || typeof id !== 'string') {
+    throw {
+      status: 400,
+      message: 'Invalid Product ID',
+    };
+  }
+
+  const productRef = db.collection(PRODUCTS_COLLECTION).doc(id);
+  const snapshot = await productRef.get();
+
+  if (!snapshot.exists) {
+    throw {
+      status: 404,
+      message: 'Product not found',
+    };
+  }
+
+  await productRef.update({
+    ...data,
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+
+  const updatedSnapshot = await productRef.get();
+
+  return {
+    id: updatedSnapshot.id,
+    _id: updatedSnapshot.id,
+    ...updatedSnapshot.data(),
+  };
+};
+
+// Delete a product
 export const deleteProduct = async (id: string) => {
-  const p = await Product.findByIdAndDelete(id);
-  if (!p) throw { status: 404, message: 'Product not found' };
-};
+  if (!id || typeof id !== 'string') {
+    throw {
+      status: 400,
+      message: 'Invalid Product ID',
+    };
+  }
 
+  const productRef = db.collection(PRODUCTS_COLLECTION).doc(id);
+  const snapshot = await productRef.get();
+
+  if (!snapshot.exists) {
+    throw {
+      status: 404,
+      message: 'Product not found',
+    };
+  }
+
+  const product = {
+    id: snapshot.id,
+    _id: snapshot.id,
+    ...snapshot.data(),
+  };
+
+  await productRef.delete();
+
+  return {
+    message: 'Product deleted successfully',
+    product,
+  };
+};
