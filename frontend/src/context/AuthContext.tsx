@@ -96,11 +96,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   // ========================================
 
   const fetchUserData = async (currentUser: User) => {
-
+    
+ console.log('Firebase UID:', currentUser.uid);
     const userRef = doc(db, 'users', currentUser.uid);
-
+ console.log('Fetching Firestore user document...');
     const userSnap = await getDoc(userRef);
-
+  console.log('Document exists:', userSnap.exists());
     let userData: Record<string, any>;
 
     if (userSnap.exists()) {
@@ -265,43 +266,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
   // AUTH STATE LISTENER
   // ========================================
 
-  useEffect(() => {
+  
+useEffect(() => {
+  let active = true;
 
-    const unsubscribe = onAuthStateChanged(
-      auth,
-      async (currentUser) => {
+  const unsubscribe = onAuthStateChanged(
+    auth,
+    async (currentUser) => {
+      if (!active) return;
 
-        try {
+      if (!currentUser) {
+        setFirebaseUser(null);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
 
-          if (currentUser) {
+      setFirebaseUser(currentUser);
 
-            await fetchUserData(currentUser);
+      try {
+        await fetchUserData(currentUser);
+      } catch (error) {
+        console.error(
+          'Auth state profile loading error:',
+          error
+        );
 
-          } else {
-
-            setFirebaseUser(null);
-            setUser(null);
-
-          }
-
-        } catch (error) {
-
-          console.error('Auth state error:', error);
-
-          setFirebaseUser(null);
-          setUser(null);
-
-        } finally {
-
+        // Do not silently sign out the Firebase user.
+        // Keep loading false so the error can be handled.
+      } finally {
+        if (active) {
           setLoading(false);
-
         }
       }
-    );
+    }
+  );
 
-    return () => unsubscribe();
+  return () => {
+    active = false;
+    unsubscribe();
+  };
+}, []);
 
-  }, []);
 
   // ========================================
   // ADMIN CHECK

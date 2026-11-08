@@ -9,12 +9,13 @@ import { db } from '../../data/firebase';
 
 import {
   collection,
-  addDoc,
   query,
   where,
   getDocs,
   limit,
-  serverTimestamp
+  serverTimestamp,
+  doc,
+  writeBatch
 } from 'firebase/firestore';
 
 // ==========================================
@@ -24,12 +25,46 @@ import {
 interface Coupon {
   id: string;
   code: string;
+  discountType: string;
   discountValue: number;
   minAmount: number;
+  expiryDate: string;
 }
 
 const SHIPPING_COST = 2;
 const MAX_COUPONS_DISPLAYED = 10;
+
+const getTodayDate = () => {
+  const today = new Date();
+
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+};
+
+const isCouponExpired = (expiryDate: string): boolean => {
+  if (!expiryDate || !/^\d{4}-\d{2}-\d{2}$/.test(expiryDate)) {
+    return true;
+  }
+
+   const [year, month, day] = expiryDate.split('-').map(Number);
+     // Validate calendar date using UTC to avoid timezone issues.
+  const parsedDate = new Date(Date.UTC(year, month - 1, day));
+
+   const validDate =
+    parsedDate.getUTCFullYear() === year &&
+    parsedDate.getUTCMonth() === month - 1 &&
+    parsedDate.getUTCDate() === day;
+
+  if (!validDate) {
+    return true;
+  }
+
+  // Expired only after the expiry date.
+  return expiryDate < getTodayDate();
+};
 
 // ==========================================
 // 2. COMPONENT
@@ -87,51 +122,87 @@ const Checkout = () => {
   // ==========================================
 
   useEffect(() => {
-    let active = true;
+  let active = true;
 
-    const fetchCoupons = async () => {
-      try {
-        const couponsQuery = query(
-          collection(db, 'coupons'),
-          limit(MAX_COUPONS_DISPLAYED)
+  const fetchCoupons = async () => {
+    if (!user?.uid) {
+      console.log('Waiting for authenticated user...');
+      setAvailableCoupons([]);
+      return;
+    }
+
+    try {
+      console.log('Logged-in UID:', user.uid);
+      console.log('Fetching coupons from Firestore...');
+
+      const snapshot = await getDocs(
+  query(
+    collection(db, 'coupons'),
+    limit(MAX_COUPONS_DISPLAYED)
+  )
+);
+
+      if (!active) return;
+
+      console.log('Total coupon documents:', snapshot.size);
+
+      snapshot.docs.forEach((couponDoc) => {
+        console.log(
+          'Coupon document:',
+          couponDoc.id,
+          couponDoc.data()
         );
+      });
 
-        const snapshot = await getDocs(couponsQuery);
+      const coupons: Coupon[] = snapshot.docs
+        .map((couponDoc) => {
+          const data = couponDoc.data();
 
-        if (!active) return;
+          return {
+            id: couponDoc.id,
+            code: String(data.code || '').trim().toUpperCase(),
+            discountType: String(data.discountType || 'fixed'),
+            discountValue: Number(data.discountValue),
+            minAmount: Number(data.minAmount || 0),
+            expiryDate: String(data.expiryDate || '')
+          };
+        })
+        .filter((coupon) => {
+          const valid =
+            coupon.code.length > 0 &&
+            coupon.discountType === 'fixed' &&
+            Number.isFinite(coupon.discountValue) &&
+            coupon.discountValue > 0 &&
+            Number.isFinite(coupon.minAmount) &&
+            coupon.minAmount >= 0 &&
+            !isCouponExpired(coupon.expiryDate);
 
-        const coupons: Coupon[] = snapshot.docs
-          .map((couponDoc) => {
-            const data = couponDoc.data();
-
-            return {
-              id: couponDoc.id,
-              code: String(data.code || '').trim().toUpperCase(),
-              discountValue: Number(data.discountValue),
-              minAmount: Number(data.minAmount || 0)
-            };
-          })
-          .filter(
-            (coupon) =>
-              coupon.code.length > 0 &&
-              Number.isFinite(coupon.discountValue) &&
-              coupon.discountValue > 0 &&
-              Number.isFinite(coupon.minAmount) &&
-              coupon.minAmount >= 0
+          console.log(
+            `Coupon ${coupon.code}:`,
+            valid ? 'VALID' : 'FILTERED OUT'
           );
 
-        setAvailableCoupons(coupons);
-      } catch (error) {
-        console.error('Error fetching coupons:', error);
-      }
-    };
+          return valid;
+        });
 
-    fetchCoupons();
+      if (!active) return;
 
-    return () => {
-      active = false;
-    };
-  }, []);
+      setAvailableCoupons(coupons);
+
+      console.log('Final available coupons:', coupons);
+
+    } catch (error) {
+      console.error('Coupon fetching failed:', error);
+    }
+  };
+
+  fetchCoupons();
+
+  return () => {
+    active = false;
+  };
+
+}, [user?.uid]);
 
   // ==========================================
   // 5. CHECK WHETHER COUPON WAS USED
@@ -200,6 +271,22 @@ const Checkout = () => {
       }
 
       const couponData = couponSnapshot.docs[0].data();
+      // Check discount type
+if (couponData.discountType !== 'fixed') {
+  setCouponMessage('Unsupported coupon discount type.');
+  return;
+}
+
+// Check expiry date
+const expiryDate = String(couponData.expiryDate || '');
+if (couponData.discountType !== 'fixed') {
+  throw new Error('Unsupported coupon discount type.');
+}
+
+if (isCouponExpired(expiryDate)) {
+  setCouponMessage('This coupon has expired or has an invalid expiry date.');
+  return;
+}
 
       const discountAmount = Number(couponData.discountValue);
       const minAmount = Number(couponData.minAmount || 0);
@@ -381,44 +468,48 @@ const Checkout = () => {
         subtotal + shipping - verifiedDiscount
       );
 
+    
       const orderData = {
-  userId: user.uid,
-  customerEmail: user.email || '',
+        userId: user.uid,
+        customerEmail: user.email || '',
 
-  items: cart.map((item) => ({
-    id: item.id,
-    name: item.name,
-    price: item.price,
-    image: item.image,
-    quantity: item.quantity
-  })),
+        items: cart.map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          image: item.image,
+          quantity: item.quantity
+        })),
 
-  subtotal,
-  shipping,
-  discountApplied: verifiedDiscount,
-  couponUsed: verifiedCoupon,
-  totalAmount: verifiedTotal,
+        subtotal,
+        shipping,
+        discountApplied: verifiedDiscount,
+        couponUsed: verifiedCoupon,
+        totalAmount: verifiedTotal,
 
-  shippingAddress: address.trim(),
-  phoneNumber: phone.replace(/[\s-]/g, ''),
+        shippingAddress: address.trim(),
+        phoneNumber: phone.replace(/[\s-]/g, ''),
 
-  // Order status
-  status: 'Pending',
+        status: 'Pending',
 
-  // Order date and timestamp
-  createdAt: serverTimestamp(),
-  orderDate: new Date().toISOString()
-};
+        createdAt: serverTimestamp(),
+        orderDate: new Date().toISOString()
+      };
 
-// Save order to Firebase
-await addDoc(collection(db, 'orders'), orderData);
+     // Create order document
+const batch = writeBatch(db);
 
-      // IMPORTANT:
-      // This is a transitional client-side order write.
-      // Production checkout must use a trusted backend that
-      // verifies prices, stock, coupons and payment.
+const orderRef = doc(collection(db, 'orders'));
 
-      await addDoc(collection(db, 'orders'), orderData);
+batch.set(orderRef, orderData);
+
+// Save order
+await batch.commit();
+
+console.log('Order created successfully!');
+console.log('Order Document ID:', orderRef.id);
+console.log('Customer UID:', user.uid);
+
 
       clearCart();
 

@@ -17,13 +17,18 @@ export default function AdminCoupons() {
   // 1. Fetch all coupons on load
   const fetchCoupons = async () => {
     try {
+       setLoading(true);
       const snapshot = await getDocs(collection(db, 'coupons'));
-      const fetched: any[] = [];
-      snapshot.forEach((doc) => fetched.push({ id: doc.id, ...doc.data() }));
+     const fetched = snapshot.docs.map((couponDoc) => ({
+      id: couponDoc.id,
+      ...couponDoc.data()
+    }));
       setCoupons(fetched);
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching coupons:", error);
+     console.error('Error fetching coupons:', error);
+    showToast('Failed to load coupons.', 'error');
+    }finally{
       setLoading(false);
     }
   };
@@ -39,7 +44,10 @@ export default function AdminCoupons() {
 
     try {
       // Check if code already exists
-      const existing = coupons.find(c => c.code === code.toUpperCase());
+      const normalizedCode = code.trim().toUpperCase();
+      const existing = coupons.find(
+  c => c.code?.trim().toUpperCase() === normalizedCode
+);
       if (existing) {
         showToast("A coupon with this code already exists!", "error");
         setIsCreating(false);
@@ -161,7 +169,9 @@ export default function AdminCoupons() {
                       {c.code}
                     </span>
                   </td>
-                  <td style={{ padding: '16px', color: '#16a34a', fontWeight: 'bold' }}>₹{c.discount} OFF</td>
+                 <td style={{ padding: '16px', color: '#16a34a', fontWeight: 'bold' }}>
+  ₹{c.discountValue ?? c.discount ?? 0} OFF
+</td>
                   <td style={{ padding: '16px' }}>₹{c.minAmount}</td>
                   <td style={{ padding: '16px', textAlign: 'right' }}>
                     <button 

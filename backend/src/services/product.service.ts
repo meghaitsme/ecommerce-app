@@ -5,7 +5,17 @@ import {
   type DocumentData,
 } from 'firebase-admin/firestore';
 
-import { db } from '../config/firebase-admin';
+import { getApps, initializeApp } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
+
+const db = getFirestore(getApps()[0] ?? initializeApp());
+
+export interface ProductData {
+  [key: string]: any;
+  id: string;
+  _id: string;
+  name: string;
+}
 
 const PRODUCTS_COLLECTION = 'products';
 
@@ -28,11 +38,11 @@ export const getProduct = async (id: string) => {
     };
   }
 
-  return {
-    id: snapshot.id,
-    _id: snapshot.id,
-    ...snapshot.data(),
-  };
+ return {
+  id: snapshot.id,
+  _id: snapshot.id,
+  ...snapshot.data(),
+} as ProductData;
 };
 
 // Get all products with pagination, filtering and sorting
@@ -110,10 +120,10 @@ export const createProduct = async (
   const snapshot = await productRef.get();
 
   return {
-    id: productRef.id,
-    _id: productRef.id,
-    ...snapshot.data(),
-  };
+  id: productRef.id,
+  _id: productRef.id,
+  ...snapshot.data(),
+} as ProductData;
 };
 
 // Update an existing product
@@ -146,10 +156,10 @@ export const updateProduct = async (
   const updatedSnapshot = await productRef.get();
 
   return {
-    id: updatedSnapshot.id,
-    _id: updatedSnapshot.id,
-    ...updatedSnapshot.data(),
-  };
+  id: updatedSnapshot.id,
+  _id: updatedSnapshot.id,
+  ...updatedSnapshot.data(),
+} as ProductData;
 };
 
 // Delete a product

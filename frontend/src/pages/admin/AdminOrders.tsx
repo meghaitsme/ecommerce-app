@@ -3,11 +3,12 @@ import { useState, useEffect } from 'react';
 import { db } from '../../data/firebase';
 import {
   collection,
-  query,
-  orderBy,
   onSnapshot,
   doc,
-  updateDoc
+  writeBatch,
+  serverTimestamp,
+  query,
+  orderBy
 } from 'firebase/firestore';
 import { useToast } from '../../context/ToastContext';
 
@@ -83,31 +84,105 @@ export default function AdminOrders() {
     return () => unsubscribe();
   }, []);
 
-  // Update order status
-  const handleStatusChange = async (
-    orderId: string,
-    newStatus: string
-  ) => {
-    try {
-      await updateDoc(doc(db, 'orders', orderId), {
-        status: newStatus
-      });
+ const handleStatusChange = async (
+  orderId: string,
+  newStatus: string
+) => {
+  try {
+    const order = orders.find((item) => item.id === orderId);
 
-      showToast(
-        `Order status updated to ${newStatus}`,
-        'success'
-      );
-
-      setSelectedOrder((prev: any) =>
-        prev?.id === orderId
-          ? { ...prev, status: newStatus }
-          : prev
-      );
-    } catch (error) {
-      console.error('Error updating status:', error);
-      showToast('Failed to update order status', 'error');
+    if (!order) {
+      showToast('Order not found', 'error');
+      return;
     }
-  };
+
+    const previousStatus = order.status || 'Pending';
+
+    // Avoid duplicate notifications (case-insensitive)
+    if (
+      previousStatus.toLowerCase() === newStatus.toLowerCase()
+    ) {
+      return;
+    }
+
+    // Get actual customer Firebase UID
+    const userId =
+      order.userId ||
+      order.uid ||
+      order.customerId ||
+      order.user?.uid ||
+      order.user?.id;
+
+    if (!userId) {
+      console.error('Customer Firebase UID missing:', order);
+      showToast('Customer Firebase UID not found', 'error');
+      return;
+    }
+
+    const batch = writeBatch(db);
+
+    // 1. Update order status
+    const orderRef = doc(db, 'orders', orderId);
+
+    batch.update(orderRef, {
+      status: newStatus,
+      updatedAt: serverTimestamp()
+    });
+
+    // 2. Notification messages
+    const notificationMessages: Record<string, string> = {
+      Pending: 'Your order is pending confirmation.',
+      Processing: 'Your order is being processed.',
+      Shipped: 'Great news! Your order has been shipped.',
+      Delivered: 'Your order has been delivered successfully.',
+      Cancelled: 'Your order has been cancelled.'
+    };
+
+    // 3. Create notification
+    const notificationRef = doc(
+      collection(db, 'notifications')
+    );
+
+    batch.set(notificationRef, {
+      userId: userId,
+      orderId: orderId,
+      title: `Order ${newStatus}`,
+      message:
+        notificationMessages[newStatus] ||
+        `Your order status has changed to ${newStatus}.`,
+      type: 'order_status',
+      status: newStatus,
+      previousStatus: previousStatus,
+      isRead: false,
+      createdAt: serverTimestamp()
+    });
+
+    // 4. Save both changes
+    await batch.commit();
+
+    console.log('Order status updated:', newStatus);
+    console.log('Notification created successfully');
+    console.log('Customer UID:', userId);
+    console.log('Order ID:', orderId);
+
+    showToast(
+      `Order updated and customer notified: ${newStatus}`,
+      'success'
+    );
+
+    // Update selected modal
+    setSelectedOrder((prev: any) =>
+      prev?.id === orderId
+        ? { ...prev, status: newStatus }
+        : prev
+    );
+
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    showToast('Failed to update order status', 'error');
+  }
+};
+
 
   const getStatusStyle = (status: string) => {
     switch (status) {
@@ -310,6 +385,7 @@ export default function AdminOrders() {
                         }}
                       >
                         <option value="Pending">Pending</option>
+                         <option value="Processing">Processing</option>
                         <option value="Shipped">Shipped</option>
                         <option value="Delivered">Delivered</option>
                         <option value="Cancelled">Cancelled</option>
