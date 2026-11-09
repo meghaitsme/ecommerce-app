@@ -89,7 +89,7 @@ export default function PDP() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
-  const { addToCart } = useCart();
+  const { addToCart,cartLoading  } = useCart();
   const { showToast } = useToast();
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -213,61 +213,103 @@ export default function PDP() {
     setQuantity(value);
   };
 
-  // ADD TO CART
-  const handleAddToCart = async () => {
-    if (!product) return;
+// ADD TO CART
+const handleAddToCart = async () => {
+  if (!product) return;
 
-    if (stock <= 0 || quantity > stock) {
-      showToast('Product is out of stock.', 'error');
+  if (cartLoading) {
+    showToast('Please wait. Cart is loading...', 'error');
+    return;
+  }
+
+  if (stock <= 0 || quantity > stock) {
+    showToast('Product is out of stock.', 'error');
+    return;
+  }
+
+  try {
+    setAddingToCart(true);
+
+    const added = addToCart(
+      {
+        ...product,
+        id: product.id,
+        _id: product.id,
+        image: getImages(product)[0] || ''
+      },
+      quantity
+    );
+
+    if (!added) {
+      showToast(
+        'Unable to add product. Please check your login.',
+        'error'
+      );
       return;
     }
 
-    try {
-      setAddingToCart(true);
+    showToast(
+      'Product added to cart successfully!',
+      'success'
+    );
 
-      await addToCart(
-        {
-          ...product,
-          id: product.id,
-          _id: product.id
-        },
-        quantity
+  } catch (error) {
+    console.error('Add to Cart Error:', error);
+    showToast('Unable to add product to cart.', 'error');
+
+  } finally {
+    setAddingToCart(false);
+  }
+};
+
+
+// BUY NOW
+const handleBuyNow = async () => {
+  if (!product) return;
+
+  if (cartLoading) {
+    showToast('Please wait. Cart is loading...', 'error');
+    return;
+  }
+
+  if (stock <= 0 || quantity > stock) {
+    showToast('Product is out of stock.', 'error');
+    return;
+  }
+
+  try {
+    setAddingToCart(true);
+
+    const added = addToCart(
+      {
+        ...product,
+        id: product.id,
+        _id: product.id,
+        image: getImages(product)[0] || ''
+      },
+      quantity
+    );
+
+    if (!added) {
+      showToast(
+        'Unable to add product. Please check your login.',
+        'error'
       );
-
-      showToast('Product added to cart successfully!', 'success');
-    } catch (error) {
-      console.error('Add to Cart Error:', error);
-      showToast('Unable to add product to cart.', 'error');
-    } finally {
-      setAddingToCart(false);
-    }
-  };
-
-  // BUY NOW
-  const handleBuyNow = async () => {
-    if (!product) return;
-
-    if (stock <= 0 || quantity > stock) {
-      showToast('Product is out of stock.', 'error');
       return;
     }
 
-    try {
-      await addToCart(
-        {
-          ...product,
-          id: product.id,
-          _id: product.id
-        },
-        quantity
-      );
+    showToast('Product added to cart!', 'success');
 
-      navigate('/cart');
-    } catch (error) {
-      console.error('Buy Now Error:', error);
-      showToast('Unable to proceed. Please try again.', 'error');
-    }
-  };
+    navigate('/cart');
+
+  } catch (error) {
+    console.error('Buy Now Error:', error);
+    showToast('Unable to proceed. Please try again.', 'error');
+
+  } finally {
+    setAddingToCart(false);
+  }
+};
 
   // LOADING
   if (loading) {
@@ -470,14 +512,14 @@ export default function PDP() {
               <span>→</span>
             </button>
 
-            <button
-              type="button"
-              className="pdp-buy-button"
-              onClick={handleBuyNow}
-              disabled={stock <= 0}
-            >
-              Buy Now
-            </button>
+           <button
+  type="button"
+  className="pdp-buy-button"
+  onClick={handleBuyNow}
+  disabled={stock <= 0 || addingToCart || cartLoading}
+>
+  {addingToCart ? 'Processing...' : 'Buy Now'}
+</button>
 
           </div>
 

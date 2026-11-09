@@ -1,13 +1,26 @@
 ﻿
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './context/AuthContext';
-import { CartProvider } from './context/CartContext';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate
+} from 'react-router-dom';
 
-// Components
+// Context Providers
+import {
+  AuthProvider,
+  useAuth
+} from './context/AuthContext';
+
+import { CartProvider } from './context/CartContext';
+import { WishlistProvider } from './context/WishlistContext';
+
+// Common Components
 import Navbar from './components/common/Navbar';
 import ScrollToTop from './components/common/ScrollToTop';
+import Footer from './components/common/Footer';
 
-// Public Pages
+// Customer Pages
 import Home from './pages/customer/Home';
 import PLP from './pages/customer/PLP';
 import PDP from './pages/customer/PDP';
@@ -34,116 +47,231 @@ import AdminReviews from './pages/admin/AdminReviews';
 import AdminSubscribers from './pages/admin/AdminSubscribers';
 import AdminMessages from './pages/admin/AdminMessages';
 
-function AppRoutes() {
-const { user, loading, isAdmin } = useAuth();
+// ==========================================
+// 1. APP ROUTES
+// ==========================================
 
+function AppRoutes() {
+  const { user, loading, isAdmin } = useAuth();
+
+  // AUTH LOADING
   if (loading) {
     return (
-      <div style={{ padding: '50px', textAlign: 'center' }}>
-        Loading...
+      <div style={{
+        padding: '50px',
+        textAlign: 'center'
+      }}>
+        Loading ShopNova...
       </div>
     );
   }
 
-  // DEBUG LOGS
-console.log('========== ADMIN DEBUG ==========');
-console.log('Current User:', user);
-console.log('User Email:', user?.email);
-console.log('Is Admin:', isAdmin);
-console.log('User Role:', user?.role);
-console.log('=================================');
+  // ADMIN DEBUG
+  console.log('========== ADMIN DEBUG ==========');
+  console.log('Current User:', user);
+  console.log('User Email:', user?.email);
+  console.log('Is Admin:', isAdmin);
+  console.log('User Role:', user?.role);
+  console.log('=================================');
 
   return (
     <Routes>
-      {/* PUBLIC BUYER ROUTES */}
+
+      {/* =====================================
+          PUBLIC CUSTOMER ROUTES
+      ===================================== */}
+
       <Route path="/" element={<Home />} />
+
       <Route path="/products" element={<PLP />} />
+
       <Route path="/product/:id" element={<PDP />} />
+
       <Route path="/cart" element={<Cart />} />
+
       <Route path="/login" element={<Login />} />
+
       <Route path="/register" element={<Register />} />
+
       <Route path="/profile" element={<Profile />} />
+
       <Route path="/checkout" element={<Checkout />} />
-      <Route path="/order-success" element={<OrderSuccess />} />
+
+      <Route
+        path="/order-success"
+        element={<OrderSuccess />}
+      />
+
       <Route path="/wishlist" element={<Wishlist />} />
+
       <Route path="/contact" element={<Contact />} />
 
-      {/* CUSTOMER ORDER ROUTES */}
+      {/* =====================================
+          CUSTOMER ORDER ROUTES
+      ===================================== */}
+
       <Route path="/orders" element={<OrderHistory />} />
+
       <Route path="/invoice/:id" element={<Invoice />} />
 
-      {/* PROTECTED ADMIN ROUTES */}
+      {/* =====================================
+          PROTECTED ADMIN ROUTES
+      ===================================== */}
+
       <Route
         path="/admin/add-product"
-        element={isAdmin ? <AddProduct /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AddProduct />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/dashboard"
-        element={isAdmin ? <Dashboard /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <Dashboard />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/users"
-        element={isAdmin ? <AdminUsers /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AdminUsers />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/products"
-        element={isAdmin ? <AdminProducts /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AdminProducts />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/coupons"
-        element={isAdmin ? <AdminCoupons /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AdminCoupons />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/orders"
-        element={isAdmin ? <AdminOrders /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AdminOrders />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/reviews"
-        element={isAdmin ? <AdminReviews /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AdminReviews />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/subscribers"
-        element={isAdmin ? <AdminSubscribers /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AdminSubscribers />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/edit-product/:id"
-        element={isAdmin ? <EditProduct /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <EditProduct />
+            : <Navigate to="/login" replace />
+        }
       />
 
       <Route
         path="/admin/messages"
-        element={isAdmin ? <AdminMessages /> : <Navigate to="/login" replace />}
+        element={
+          isAdmin
+            ? <AdminMessages />
+            : <Navigate to="/login" replace />
+        }
       />
 
-      {/* OLD URL REDIRECT */}
+      {/* =====================================
+          OLD URL REDIRECT
+      ===================================== */}
+
       <Route
         path="/admin/AdminOrders"
-        element={<Navigate to="/admin/orders" replace />}
+        element={
+          <Navigate to="/admin/orders" replace />
+        }
       />
 
-      {/* FALLBACK */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* =====================================
+          FALLBACK ROUTE
+      ===================================== */}
+
+      <Route
+        path="*"
+        element={<Navigate to="/" replace />}
+      />
 
     </Routes>
   );
 }
 
+// ==========================================
+// 2. MAIN APP CONTENT
+// ==========================================
+
+function AppContent() {
+  return (
+    <>
+      <ScrollToTop />
+
+      <Navbar />
+
+      <AppRoutes />
+
+      <Footer />
+    </>
+  );
+}
+
+// ==========================================
+// 3. MAIN APP WITH PROVIDERS
+// ==========================================
+
 export default function App() {
   return (
     <BrowserRouter>
-      <CartProvider>
-        <ScrollToTop />
-        <Navbar />
-        <AppRoutes />
-      </CartProvider>
+
+      <AuthProvider>
+
+        <CartProvider>
+
+          <WishlistProvider>
+
+            <AppContent />
+
+          </WishlistProvider>
+
+        </CartProvider>
+
+      </AuthProvider>
+
     </BrowserRouter>
   );
 }

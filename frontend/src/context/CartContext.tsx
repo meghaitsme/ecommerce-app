@@ -13,7 +13,8 @@ import { db } from '../data/firebase';
 import {
   doc,
   getDoc,
-  setDoc
+  setDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 
 import { useAuth } from './AuthContext';
@@ -34,15 +35,24 @@ export interface CartItem {
 // 2. PRODUCT INPUT INTERFACE
 // ==========================================
 
+interface ProductImage {
+  url?: string;
+  imageUrl?: string;
+}
+
 interface CartProduct {
   id?: string;
   _id?: string;
   productId?: string;
   name?: string;
   price?: number | string;
-  image?: string | string[];
+  image?: string | Array<string | ProductImage>;
   imageUrl?: string;
+  images?: Array<string | ProductImage>;
   stock?: number | string;
+  stockQuantity?: number | string;
+  quantity?: number | string;
+  inStock?: boolean;
   [key: string]: unknown;
 }
 
@@ -63,7 +73,7 @@ interface CartContextType {
 }
 
 // ==========================================
-// 4. CREATE CART CONTEXT
+// 4. CREATE CONTEXT
 // ==========================================
 
 const CartContext = createContext<CartContextType | undefined>(
@@ -71,22 +81,19 @@ const CartContext = createContext<CartContextType | undefined>(
 );
 
 // ==========================================
-// 5. VALIDATE SAVED CART
+// 5. NORMALIZE CART DATA
 // ==========================================
 
 const normalizeCart = (items: unknown): CartItem[] => {
-  if (!Array.isArray(items)) {
-    return [];
-  }
+  if (!Array.isArray(items)) return [];
 
   return items
-    .filter((item): item is Record<string, unknown> => {
-      return (
+    .filter(
+      (item): item is Record<string, unknown> =>
         !!item &&
         typeof item === 'object' &&
         !Array.isArray(item)
-      );
-    })
+    )
     .map((item): CartItem | null => {
       const id = String(item.id || '').trim();
       const name = String(item.name || '').trim();
@@ -119,7 +126,45 @@ const normalizeCart = (items: unknown): CartItem[] => {
 };
 
 // ==========================================
-// 6. CART PROVIDER
+// 6. GET PRODUCT IMAGE
+// ==========================================
+
+const getProductImage = (product: CartProduct): string => {
+  const normalizeImage = (
+    value: string | ProductImage | undefined
+  ): string => {
+    if (typeof value === 'string') {
+      return value.trim();
+    }
+
+    if (value && typeof value === 'object') {
+      return value.url || value.imageUrl || '';
+    }
+
+    return '';
+  };
+
+  if (typeof product.image === 'string' && product.image.trim()) {
+    return product.image.split(',')[0].trim();
+  }
+
+  if (Array.isArray(product.image) && product.image.length > 0) {
+    return normalizeImage(product.image[0]);
+  }
+
+  if (product.imageUrl) {
+    return product.imageUrl;
+  }
+
+  if (product.images?.length) {
+    return normalizeImage(product.images[0]);
+  }
+
+  return '';
+};
+
+// ==========================================
+// 7. CART PROVIDER
 // ==========================================
 
 export const CartProvider = ({
@@ -132,40 +177,41 @@ export const CartProvider = ({
 
   const { user } = useAuth();
 
-  // Keep the latest cart available to callbacks.
   const cartRef = useRef<CartItem[]>([]);
-
-  // Prevent old fetch requests from updating new sessions.
   const requestVersion = useRef(0);
 
-  // Serialize Firestore writes.
-  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const saveQueue = useRef<Promise<void>>(
+    Promise.resolve()
+  );
 
   // ==========================================
-  // 7. UPDATE LOCAL CART
+  // 8. UPDATE LOCAL CART
   // ==========================================
 
-  const updateLocalCart = useCallback((items: CartItem[]) => {
-    cartRef.current = items;
-    setCart(items);
-  }, []);
+  const updateLocalCart = useCallback(
+    (items: CartItem[]) => {
+      cartRef.current = items;
+      setCart(items);
+    },
+    []
+  );
 
   // ==========================================
-  // 8. SAVE CART TO FIRESTORE
+  // 9. SAVE CART TO FIRESTORE
   // ==========================================
 
   const saveCart = useCallback(
     (newCart: CartItem[], uid: string) => {
       const safeCart = normalizeCart(newCart);
 
-      // Update UI immediately.
       updateLocalCart(safeCart);
 
-      const cartRefFirestore = doc(db, 'carts', uid);
+      const cartDocument = doc(db, 'carts', uid);
 
-      // Capture this exact snapshot so later changes
-      // cannot alter an already queued write.
-      const snapshot = safeCart.map(item => ({ ...item }));
+      // Keep a separate snapshot for this save.
+      const snapshot = safeCart.map(item => ({
+        ...item
+      }));
 
       saveQueue.current = saveQueue.current
         .catch(error => {
@@ -173,10 +219,11 @@ export const CartProvider = ({
         })
         .then(async () => {
           await setDoc(
-            cartRefFirestore,
+            cartDocument,
             {
+              userId: uid,
               items: snapshot,
-              updatedAt: new Date()
+              updatedAt: serverTimestamp()
             },
             { merge: true }
           );
@@ -191,7 +238,7 @@ export const CartProvider = ({
   );
 
   // ==========================================
-  // 9. FETCH CART FROM FIRESTORE
+  // 10. LOAD CART FROM FIRESTORE
   // ==========================================
 
   useEffect(() => {
@@ -248,7 +295,7 @@ export const CartProvider = ({
   }, [user?.uid, updateLocalCart]);
 
   // ==========================================
-  // 10. ADD PRODUCT TO CART
+  // 11. ADD PRODUCT TO CART
   // ==========================================
 
   const addToCart = useCallback(
@@ -256,15 +303,12 @@ export const CartProvider = ({
       product: CartProduct,
       requestedQuantity = 1
     ): boolean => {
-      if (!user?.uid) {
-        console.error('Please log in before saving your cart.');
+      if (!user?.uid || cartLoading) {
+        console.error('Cart is not ready or user is not logged in.');
         return false;
       }
 
-      if (
-        !product ||
-        typeof product !== 'object'
-      ) {
+      if (!product || typeof product !== 'object') {
         return false;
       }
 
@@ -283,11 +327,8 @@ export const CartProvider = ({
         return false;
       }
 
-      if (
-        !Number.isFinite(price) ||
-        price < 0
-      ) {
-        console.error('Invalid product price:', product.price);
+      if (!Number.isFinite(price) || price < 0) {
+        console.error('Invalid product price');
         return false;
       }
 
@@ -299,12 +340,25 @@ export const CartProvider = ({
         return false;
       }
 
+      // STOCK VALIDATION
+
+      if (product.inStock === false) {
+        console.error('Product is out of stock');
+        return false;
+      }
+
+      const rawStock =
+        product.stock ??
+        product.stockQuantity ??
+        product.quantity;
+
       const hasStock =
-        product.stock !== undefined &&
-        product.stock !== null;
+        rawStock !== undefined &&
+        rawStock !== null &&
+        rawStock !== '';
 
       const stock = hasStock
-        ? Number(product.stock)
+        ? Number(rawStock)
         : undefined;
 
       if (
@@ -323,6 +377,8 @@ export const CartProvider = ({
         return false;
       }
 
+      // CHECK EXISTING ITEM
+
       const existing = cartRef.current.find(
         item => item.id === productId
       );
@@ -334,27 +390,25 @@ export const CartProvider = ({
         hasStock &&
         newQuantity > stock!
       ) {
-        console.error('Total cart quantity exceeds stock');
+        console.error('Total quantity exceeds available stock');
         return false;
       }
 
-      const rawImage = product.image || product.imageUrl;
+      // GET IMAGE
 
-      const image = Array.isArray(rawImage)
-        ? rawImage[0] || ''
-        : typeof rawImage === 'string'
-          ? rawImage.split(',')[0].trim()
-          : '';
+      const image = getProductImage(product);
+
+      // UPDATE CART
 
       const newCart: CartItem[] = existing
         ? cartRef.current.map(item =>
             item.id === productId
               ? {
                   ...item,
-                  quantity: newQuantity,
                   name,
                   price,
-                  image: image || item.image
+                  image: image || item.image,
+                  quantity: newQuantity
                 }
               : item
           )
@@ -373,16 +427,18 @@ export const CartProvider = ({
 
       return true;
     },
-    [user?.uid, saveCart]
+    [user?.uid, cartLoading, saveCart]
   );
 
   // ==========================================
-  // 11. REMOVE PRODUCT
+  // 12. REMOVE PRODUCT
   // ==========================================
 
   const removeFromCart = useCallback(
     (productId: string) => {
-      if (!user?.uid || !productId) return;
+      if (!user?.uid || cartLoading || !productId) {
+        return;
+      }
 
       const newCart = cartRef.current.filter(
         item => item.id !== productId
@@ -390,21 +446,23 @@ export const CartProvider = ({
 
       saveCart(newCart, user.uid);
     },
-    [user?.uid, saveCart]
+    [user?.uid, cartLoading, saveCart]
   );
 
   // ==========================================
-  // 12. CLEAR CART
+  // 13. CLEAR CART
   // ==========================================
 
   const clearCart = useCallback(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || cartLoading) {
+      return;
+    }
 
     saveCart([], user.uid);
-  }, [user?.uid, saveCart]);
+  }, [user?.uid, cartLoading, saveCart]);
 
   // ==========================================
-  // 13. CALCULATE ITEM COUNT
+  // 14. ITEM COUNT
   // ==========================================
 
   const itemCount = cart.reduce(
@@ -413,7 +471,7 @@ export const CartProvider = ({
   );
 
   // ==========================================
-  // 14. PROVIDE CART CONTEXT
+  // 15. PROVIDER
   // ==========================================
 
   return (
@@ -433,10 +491,10 @@ export const CartProvider = ({
 };
 
 // ==========================================
-// 15. CUSTOM CART HOOK
+// 16. CUSTOM CART HOOK
 // ==========================================
 
-export const useCart = () => {
+export const useCart = (): CartContextType => {
   const context = useContext(CartContext);
 
   if (!context) {

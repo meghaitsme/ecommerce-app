@@ -1,179 +1,130 @@
 
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../../data/firebase';
-import {
-  collection,
-  query,
-  where,
-  onSnapshot,
-  deleteDoc,
-  doc
-} from 'firebase/firestore';
 
 import { useAuth } from '../../context/AuthContext';
 import { useCart } from '../../context/CartContext';
+import { useWishlist } from '../../context/WishlistContext';
 
 export default function Wishlist() {
-
   const { user } = useAuth();
-  const { addToCart } = useCart();
 
-  const [wishlist, setWishlist] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { addToCart, cartLoading } = useCart();
 
-  // 1. Fetch User Wishlist
+  const {
+    wishlist,
+    loading,
+    error,
+    removeFromWishlist
+  } = useWishlist();
 
-  useEffect(() => {
-
-    if (!user?.uid) {
-      setWishlist([]);
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-
-    const q = query(
-      collection(db, 'wishlist'),
-      where('userId', '==', user.uid)
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-
-        const fetched: any[] = [];
-
-        snapshot.forEach((document) => {
-
-          fetched.push({
-            id: document.id,
-            ...document.data()
-          });
-
-        });
-
-        setWishlist(fetched);
-        setLoading(false);
-
-      },
-      (error) => {
-
-        console.error(
-          'Error fetching wishlist:',
-          error
-        );
-
-        setLoading(false);
-
-      }
-    );
-
-    return () => unsubscribe();
-
-  }, [user?.uid]);
-
-  // 2. Remove from Wishlist
+  // ==========================================
+  // REMOVE WISHLIST PRODUCT
+  // ==========================================
 
   const handleRemove = async (id: string) => {
-
     try {
-
-      await deleteDoc(
-        doc(db, 'wishlist', id)
-      );
-
-      console.log('Wishlist item removed');
-
-    } catch (error: any) {
-  console.error('Wishlist error:', error);
-  console.error('Error code:', error.code);
-  console.error('Error message:', error.message);
-
-  alert(
-    `Wishlist Error: ${error.code || error.message}`
-  );
-}
-
+      await removeFromWishlist(id);
+    } catch (err) {
+      console.error('Remove wishlist error:', err);
+      alert('Unable to remove product from wishlist.');
+    }
   };
 
-  // 3. Add to Cart
+  // ==========================================
+  // ADD PRODUCT TO CART
+  // ==========================================
 
-  const handleAddToCart = (item: any) => {
+  const handleAddToCart = (item: typeof wishlist[number]) => {
+    const success = addToCart({
+      id: item.productId,
+      name: item.name,
+      price: item.price,
+      image: item.imageUrl
+    });
 
-  addToCart({
-    ...item,
-    id: item.productId,
-    image: item.imageUrl
-  });
+    if (success) {
+      alert('Product added to cart!');
+    } else {
+      alert('Unable to add product. Please check stock and try again.');
+    }
+  };
 
-  alert('Added to Cart!');
-
-};
-
-  // 4. Login Check
+  // ==========================================
+  // LOGIN CHECK
+  // ==========================================
 
   if (!user) {
-
     return (
-
       <div style={{
         padding: '80px 24px',
         textAlign: 'center'
       }}>
-
         <h2>Please log in to view your wishlist</h2>
 
         <Link to="/login">
           Log In
         </Link>
-
       </div>
-
     );
-
   }
 
-  // 5. Loading
+  // ==========================================
+  // LOADING
+  // ==========================================
 
   if (loading) {
-
-    return <p>Loading your wishlist...</p>;
-
+    return (
+      <div style={{
+        padding: '80px',
+        textAlign: 'center'
+      }}>
+        Loading your wishlist...
+      </div>
+    );
   }
 
-  // 6. Empty Wishlist
+  // ==========================================
+  // ERROR
+  // ==========================================
 
-  if (wishlist.length === 0) {
-
+  if (error) {
     return (
-
       <div style={{
         padding: '60px',
         textAlign: 'center'
       }}>
+        <h2>Unable to load wishlist</h2>
+        <p>{error}</p>
+      </div>
+    );
+  }
 
+  // ==========================================
+  // EMPTY WISHLIST
+  // ==========================================
+
+  if (wishlist.length === 0) {
+    return (
+      <div style={{
+        padding: '60px',
+        textAlign: 'center'
+      }}>
         <h2>Your wishlist is empty ❤️</h2>
 
-        <p>
-          Save your favorite products here.
-        </p>
+        <p>Save your favorite products here.</p>
 
         <Link to="/products">
           Explore Products
         </Link>
-
       </div>
-
     );
-
   }
 
-  // 7. Display Wishlist Products
+  // ==========================================
+  // WISHLIST PRODUCTS
+  // ==========================================
 
   return (
-
     <div style={{
       padding: '40px 24px',
       maxWidth: '1200px',
@@ -182,6 +133,10 @@ export default function Wishlist() {
 
       <h1>My Wishlist ❤️</h1>
 
+      <p>
+        {wishlist.length} saved product(s)
+      </p>
+
       <div style={{
         display: 'grid',
         gridTemplateColumns:
@@ -189,7 +144,7 @@ export default function Wishlist() {
         gap: '24px'
       }}>
 
-        {wishlist.map((item) => (
+        {wishlist.map(item => (
 
           <div
             key={item.id}
@@ -201,31 +156,28 @@ export default function Wishlist() {
             }}
           >
 
-            {/* Product Image */}
-
             <Link to={`/product/${item.productId}`}>
-
               <img
                 src={
                   item.imageUrl ||
-                  'https://via.placeholder.com/300x200'
+                  'https://placehold.co/300x200?text=Product'
                 }
                 alt={item.name}
+                onError={(e) => {
+                  e.currentTarget.src =
+                    'https://placehold.co/300x200?text=Product';
+                }}
                 style={{
                   width: '100%',
                   height: '200px',
                   objectFit: 'cover'
                 }}
               />
-
             </Link>
-
-            {/* Product Details */}
 
             <div style={{ padding: '16px' }}>
 
               <h3>
-
                 <Link
                   to={`/product/${item.productId}`}
                   style={{
@@ -235,17 +187,14 @@ export default function Wishlist() {
                 >
                   {item.name}
                 </Link>
-
               </h3>
 
               <p style={{
                 fontSize: '20px',
                 fontWeight: 'bold'
               }}>
-                ₹{Number(item.price || 0).toFixed(2)}
+                ₹{item.price.toFixed(2)}
               </p>
-
-              {/* Actions */}
 
               <div style={{
                 display: 'flex',
@@ -254,6 +203,7 @@ export default function Wishlist() {
 
                 <button
                   onClick={() => handleAddToCart(item)}
+                  disabled={cartLoading}
                   style={{
                     flex: 1,
                     padding: '10px',
@@ -261,7 +211,8 @@ export default function Wishlist() {
                     color: 'white',
                     border: 'none',
                     borderRadius: '6px',
-                    cursor: 'pointer'
+                    cursor: cartLoading ? 'not-allowed' : 'pointer',
+                    opacity: cartLoading ? 0.6 : 1
                   }}
                 >
                   Add to Cart
@@ -277,6 +228,7 @@ export default function Wishlist() {
                     borderRadius: '6px',
                     cursor: 'pointer'
                   }}
+                  title="Remove from wishlist"
                 >
                   ✕
                 </button>
@@ -284,15 +236,11 @@ export default function Wishlist() {
               </div>
 
             </div>
-
           </div>
 
         ))}
 
       </div>
-
     </div>
-
   );
-
 }

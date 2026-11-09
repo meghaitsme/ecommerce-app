@@ -1,6 +1,8 @@
 
 import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
 import { Link } from 'react-router-dom';
+
 import {
   collection,
   getDocs,
@@ -11,66 +13,126 @@ import { db } from '../../data/firebase';
 import { formatPrice } from '../../utils/format';
 import { useToast } from '../../context/ToastContext';
 
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  category?: string;
-  description?: string;
-  image?: string;
+import './Home.css';
+
+interface ProductImage {
+  url?: string;
   imageUrl?: string;
-  images?: any[];
-  isFeatured?: boolean;
-  salesCount?: number;
-  stock?: number;
-  [key: string]: any;
 }
 
-const pageStyle: React.CSSProperties = {
-  background: '#f6f7f9',
-  minHeight: '100vh',
-  color: '#111827',
-  fontFamily: 'Arial, sans-serif'
-};
+interface Product {
+  id: string;
+  _id: string;
+  name: string;
+  price: number;
+  category: string;
+  description: string;
+  image: string;
+  imageUrl: string;
+  images: Array<string | ProductImage>;
+  isFeatured: boolean;
+  salesCount: number;
+  stock: number;
+}
 
-const sectionStyle: React.CSSProperties = {
-  maxWidth: '1200px',
-  margin: '0 auto',
-  padding: '65px 24px'
-};
+const FALLBACK_IMAGE =
+  'https://placehold.co/500x500?text=ShopNova';
 
-const buttonStyle: React.CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  padding: '15px 25px',
-  background: '#111827',
-  color: '#fff',
-  border: '1px solid #111827',
-  fontWeight: 600,
-  fontSize: '13px',
-  cursor: 'pointer',
-  textDecoration: 'none'
-};
+const categories = [
+  {
+    name: 'Electronics',
+    symbol: '⌘',
+    description: 'Smart technology'
+  },
+  {
+    name: 'Clothing',
+    symbol: '✧',
+    description: 'Everyday fashion'
+  },
+  {
+    name: 'Books',
+    symbol: '▤',
+    description: 'Stories & knowledge'
+  },
+  {
+    name: 'Home',
+    symbol: '⌂',
+    description: 'Beautiful living'
+  }
+];
 
 function getProductImage(product: Product): string {
-  if (Array.isArray(product.images) && product.images.length) {
+  if (Array.isArray(product.images) && product.images.length > 0) {
     const first = product.images[0];
 
-    if (typeof first === 'string') return first;
+    const image =
+      typeof first === 'string'
+        ? first
+        : first.url || first.imageUrl || '';
 
-    return first?.url || first?.imageUrl || '';
+    if (typeof image === 'string' && image.trim()) {
+      return image.trim();
+    }
   }
 
-  if (Array.isArray(product.image)) {
-    return product.image[0] || '';
-  }
-
-  if (typeof product.image === 'string') {
+  if (typeof product.image === 'string' && product.image.trim()) {
     return product.image.split(',')[0].trim();
   }
 
-  return product.imageUrl || 'https://placehold.co/500x500?text=ShopNova';
+  if (typeof product.imageUrl === 'string' && product.imageUrl.trim()) {
+    return product.imageUrl.trim();
+  }
+
+  return FALLBACK_IMAGE;
+}
+
+function getCategoryName(category: unknown): string {
+  if (typeof category === 'string') {
+    return category.trim() || 'ShopNova Collection';
+  }
+
+  if (
+    category &&
+    typeof category === 'object' &&
+    'name' in category
+  ) {
+    const name = category.name;
+
+    return typeof name === 'string' && name.trim()
+      ? name.trim()
+      : 'ShopNova Collection';
+  }
+
+  return 'ShopNova Collection';
+}
+
+function normalizeProduct(
+  id: string,
+  data: Record<string, unknown>
+): Product {
+  return {
+    id,
+    _id: id,
+    name: String(data.name || 'Unnamed Product'),
+    price: Number(data.price) || 0,
+    category: getCategoryName(data.category),
+    description: String(data.description || ''),
+    image: typeof data.image === 'string' ? data.image : '',
+    imageUrl:
+      typeof data.imageUrl === 'string'
+        ? data.imageUrl
+        : '',
+    images: Array.isArray(data.images)
+      ? (data.images as Array<string | ProductImage>)
+      : [],
+    isFeatured:
+      data.isFeatured === true || data.featured === true,
+    salesCount: Math.max(0, Number(data.salesCount) || 0),
+    stock: Math.max(
+      0,
+      Number(data.stock ?? data.stockQuantity ?? 0) || 0
+    )
+  };
 }
 
 export default function Home() {
@@ -83,452 +145,471 @@ export default function Home() {
 
   const { showToast } = useToast();
 
-  // FETCH PRODUCTS AND BESTSELLERS FROM FIRESTORE
+  // =====================================
+  // LOAD PRODUCTS FROM FIRESTORE
+  // =====================================
+
   useEffect(() => {
     let active = true;
 
-   const fetchHomeData = async () => {
-  try {
-    const productsSnapshot = await getDocs(
-      collection(db, 'products')
-    );
+    const fetchHomeData = async () => {
+      setLoading(true);
 
-    if (!active) return;
+      try {
+        const snapshot = await getDocs(collection(db, 'products'));
 
-    const products: Product[] = productsSnapshot.docs.map((item) => {
-  const data = item.data();
+        if (!active) return;
 
-  return {
-    id: item.id,
-    _id: item.id,
-    name: String(data.name || 'Unnamed Product'),
-    price: Number(data.price) || 0,
-    category: data.category || '',
-    description: data.description || '',
-    image: data.image || '',
-    imageUrl: data.imageUrl || '',
-    images: Array.isArray(data.images) ? data.images : [],
-    isFeatured: data.isFeatured === true,
-    salesCount: Number(data.salesCount) || 0,
-    stock: Number(data.stock) || 0
-  };
-});
+        const products: Product[] = snapshot.docs.map((item) =>
+          normalizeProduct(
+            item.id,
+            item.data() as Record<string, unknown>
+          )
+        );
 
-    // FEATURED PRODUCTS
-    const markedFeatured = products.filter(
-      (item) => item.isFeatured === true
-    );
+        // FEATURED PRODUCTS
+        const markedFeatured = products.filter(
+          (product) => product.isFeatured
+        );
 
-    const displayedFeatured = (
-      markedFeatured.length > 0 ? markedFeatured : products
-    ).slice(0, 4);
+        const featured = (
+          markedFeatured.length > 0
+            ? markedFeatured
+            : products
+        ).slice(0, 4);
 
-    setFeaturedProducts(displayedFeatured);
+        // TRENDING PRODUCTS
+        const trending = [...products]
+          .sort((a, b) => b.salesCount - a.salesCount)
+          .slice(0, 4);
 
-    // BESTSELLERS
-    const topSelling = [...products]
-      .sort(
-        (a, b) =>
-          (Number(b.salesCount) || 0) -
-          (Number(a.salesCount) || 0)
-      )
-      .slice(0, 4);
+        setFeaturedProducts(featured);
+        setBestsellers(trending);
 
-    setBestsellers(
-      topSelling.some((item) => Number(item.salesCount) > 0)
-        ? topSelling.filter((item) => Number(item.salesCount) > 0)
-        : []
-    );
+        console.log('ShopNova products loaded:', products.length);
+      } catch (error) {
+        console.error('Home page Firestore error:', error);
 
-    console.log('All Products:', products);
-    console.log('Featured Products:', displayedFeatured);
-    console.log('Bestsellers:', topSelling);
+        if (active) {
+          showToast(
+            'Unable to load home page products.',
+            'error'
+          );
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
 
-  } catch (error) {
-    console.error('Home page Firestore error:', error);
-    showToast('Unable to load home page products.', 'error');
-  } finally {
-    if (active) setLoading(false);
-  }
-};
     fetchHomeData();
 
     return () => {
       active = false;
     };
-  }, []);
+  }, [showToast]);
 
+  // =====================================
   // NEWSLETTER SUBSCRIPTION
-  const handleSubscribe = async (e: React.FormEvent) => {
+  // =====================================
+
+  const handleSubscribe = async (
+    e: FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
 
-    if (!email.trim()) return;
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail || subscribing) return;
 
     setSubscribing(true);
 
     try {
       await addDoc(collection(db, 'subscribers'), {
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         subscribedAt: new Date().toISOString()
       });
 
       showToast('Successfully subscribed!', 'success');
       setEmail('');
-
     } catch (error) {
       console.error('Newsletter error:', error);
-      showToast('Unable to subscribe. Please try again.', 'error');
 
+      showToast(
+        'Unable to subscribe. Please try again.',
+        'error'
+      );
     } finally {
       setSubscribing(false);
     }
   };
 
+  // =====================================
   // PRODUCT CARD
+  // =====================================
+
   const renderProduct = (product: Product) => (
     <Link
       key={product.id}
       to={`/product/${product.id}`}
-      style={{
-        background: '#fff',
-        textDecoration: 'none',
-        color: '#111827',
-        display: 'flex',
-        flexDirection: 'column',
-        border: '1px solid #e5e7eb',
-        transition: 'transform .2s, box-shadow .2s'
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-5px)';
-        e.currentTarget.style.boxShadow = '0 12px 25px rgba(0,0,0,.07)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = 'none';
-      }}
+      className="home-product-card"
+      aria-label={`View ${product.name}`}
     >
-      <div style={{
-        height: '245px',
-        background: '#f4f4f2',
-        padding: '20px',
-        position: 'relative'
-      }}>
-        {product.salesCount ? (
-          <span style={{
-            position: 'absolute',
-            top: 12,
-            left: 12,
-            background: '#111827',
-            color: '#fff',
-            fontSize: 10,
-            padding: '6px 9px',
-            letterSpacing: '1px'
-          }}>
+      <div className="home-product-image">
+        {product.salesCount > 0 && (
+          <span className="home-product-badge">
             BESTSELLER
           </span>
-        ) : null}
+        )}
 
         <img
           src={getProductImage(product)}
           alt={product.name}
           loading="lazy"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'contain'
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = FALLBACK_IMAGE;
           }}
         />
       </div>
 
-      <div style={{ padding: '19px' }}>
-        <p style={{
-          fontSize: 10,
-          letterSpacing: '1.5px',
-          color: '#9ca3af',
-          textTransform: 'uppercase',
-          marginBottom: 9
-        }}>
-          {product.category || 'ShopNova Collection'}
+      <div className="home-product-details">
+        <p className="home-product-category">
+          {product.category}
         </p>
 
-        <h3 style={{
-          fontSize: 15,
-          fontWeight: 600,
-          marginBottom: 12
-        }}>
-          {product.name}
-        </h3>
+        <h3>{product.name}</h3>
 
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center'
-        }}>
-          <strong style={{ fontSize: 16 }}>
-            {formatPrice(Number(product.price) || 0)}
-          </strong>
+        <div className="home-product-bottom">
+          <strong>{formatPrice(product.price)}</strong>
 
-          <span style={{ fontSize: 18 }}>→</span>
+          <span
+            className="home-product-arrow"
+            aria-hidden="true"
+          >
+            →
+          </span>
         </div>
       </div>
     </Link>
   );
 
   return (
-    <main style={pageStyle}>
+    <main className="home-page">
 
-      {/* HERO SECTION */}
-      <section style={{
-        background: '#eae9e5',
-        padding: '85px 24px',
-        minHeight: '440px',
-        display: 'flex',
-        alignItems: 'center'
-      }}>
-        <div style={{
-          maxWidth: 1200,
-          width: '100%',
-          margin: '0 auto'
-        }}>
-          <p style={{
-            fontSize: 11,
-            letterSpacing: 4,
-            color: '#9a7548',
-            marginBottom: 22
-          }}>
-            THE SHOPNOVA COLLECTION
-          </p>
+      {/* =====================================
+          HERO SECTION
+      ===================================== */}
 
-          <h1 style={{
-            fontSize: 'clamp(38px, 6vw, 65px)',
-            lineHeight: 1.12,
-            fontWeight: 700,
-            maxWidth: 650,
-            marginBottom: 22
-          }}>
-            Discover products.
-            <br />
-            Elevate your lifestyle.
-          </h1>
+      <section className="home-hero">
+        <div className="home-hero-container">
 
-          <p style={{
-            color: '#6b7280',
-            fontSize: 15,
-            maxWidth: 450,
-            lineHeight: 1.8,
-            marginBottom: 32
-          }}>
-            Carefully selected products for everyday living.
-            Quality, style and value in one place.
-          </p>
+          <div className="home-hero-content">
 
-          <Link to="/products" style={buttonStyle}>
-            EXPLORE COLLECTION <span style={{ marginLeft: 25 }}>→</span>
-          </Link>
-        </div>
-      </section>
+            {/* SHOPNOVA BRAND LOGO */}
 
-      {/* CATEGORY SECTION */}
-      <section style={{
-        ...sectionStyle,
-        paddingBottom: 25
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'end',
-          marginBottom: 25
-        }}>
-          <div>
-            <p style={eyebrow}>EXPLORE</p>
-            <h2 style={heading}>Shop by Category</h2>
-          </div>
-        </div>
+            <div className="home-brand">
+              <div className="home-brand-icon">
+                <span>N</span>
+              </div>
 
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
-          gap: 15
-        }}>
-          {['Electronics', 'Clothing', 'Books', 'Home'].map((category) => (
-            <Link
-              key={category}
-              to={`/products?category=${encodeURIComponent(category)}`}
-              style={{
-                background: '#fff',
-                border: '1px solid #e5e7eb',
-                padding: '27px 15px',
-                textAlign: 'center',
-                fontSize: 14,
-                fontWeight: 600,
-                color: '#111827'
-              }}
-            >
-              {category} <span style={{ marginLeft: 8 }}>→</span>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* BESTSELLERS */}
-      {bestsellers.length > 0 && (
-        <section style={sectionStyle}>
-          <div style={sectionHeader}>
-            <div>
-              <p style={eyebrow}>CUSTOMER FAVOURITES</p>
-              <h2 style={heading}>Trending Now</h2>
-              <p style={subheading}>
-                The products everyone is talking about.
-              </p>
+              <div className="home-brand-name">
+                <strong>shopnova</strong>
+                <small>SHOP • DISCOVER • LOVE</small>
+              </div>
             </div>
 
-            <Link to="/products" style={viewLink}>VIEW ALL →</Link>
+            <p className="home-eyebrow">
+              THE SHOPNOVA COLLECTION
+            </p>
+
+            <h1>
+              Discover products.
+              <br />
+              <span>Elevate your lifestyle.</span>
+            </h1>
+
+            <p className="home-hero-description">
+              Carefully selected products for everyday living.
+              Quality, style and value in one place.
+            </p>
+
+            <Link
+              to="/products"
+              className="home-primary-button"
+            >
+              EXPLORE COLLECTION
+              <span aria-hidden="true">→</span>
+            </Link>
+
+            <div className="home-hero-note">
+              <span aria-hidden="true">✦</span>
+              Discover something you'll love.
+            </div>
+
           </div>
 
-          <div style={productGrid}>
+          {/* HERO CATEGORY SHOWCASE */}
+
+          <div className="home-hero-visual">
+            <div className="home-category-showcase">
+
+              <p>THE WORLD OF SHOPNOVA</p>
+
+              <h2>
+                Everything you love, in one place.
+              </h2>
+
+              <div className="home-showcase-grid">
+
+                <Link
+                  to="/products?category=Electronics"
+                  className="showcase-item showcase-electronics"
+                >
+                  <span aria-hidden="true">⌘</span>
+                  <strong>Electronics</strong>
+                </Link>
+
+                <Link
+                  to="/products?category=Clothing"
+                  className="showcase-item showcase-fashion"
+                >
+                  <span aria-hidden="true">✧</span>
+                  <strong>Fashion</strong>
+                </Link>
+
+                <Link
+                  to="/products?category=Books"
+                  className="showcase-item showcase-books"
+                >
+                  <span aria-hidden="true">▤</span>
+                  <strong>Books</strong>
+                </Link>
+
+                <Link
+                  to="/products?category=Home"
+                  className="showcase-item showcase-home"
+                >
+                  <span aria-hidden="true">⌂</span>
+                  <strong>Home Living</strong>
+                </Link>
+
+              </div>
+
+              <span className="showcase-footer">
+                CURATED FOR YOUR EVERYDAY LIFE
+              </span>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      {/* =====================================
+          CATEGORY SECTION
+      ===================================== */}
+
+      <section className="home-section home-category-section">
+
+        <div className="home-section-header">
+          <div>
+            <p className="home-eyebrow">
+              EXPLORE OUR COLLECTION
+            </p>
+
+            <h2>Shop by Category</h2>
+
+            <p>Find exactly what you are looking for.</p>
+          </div>
+
+          <Link to="/products" className="home-view-link">
+            ALL COLLECTIONS →
+          </Link>
+        </div>
+
+        <div className="home-category-grid">
+
+          {categories.map((category) => (
+            <Link
+              key={category.name}
+              to={`/products?category=${encodeURIComponent(category.name)}`}
+              className="home-category-card"
+            >
+              <div className="home-category-symbol">
+                {category.symbol}
+              </div>
+
+              <div>
+                <h3>{category.name}</h3>
+                <p>{category.description}</p>
+              </div>
+
+              <span
+                className="home-category-arrow"
+                aria-hidden="true"
+              >
+                →
+              </span>
+            </Link>
+          ))}
+
+        </div>
+      </section>
+
+      {/* =====================================
+          TRENDING PRODUCTS
+      ===================================== */}
+
+      <section className="home-section">
+
+        <div className="home-section-header">
+          <div>
+            <p className="home-eyebrow">
+              CUSTOMER FAVOURITES
+            </p>
+
+            <h2>Trending Now</h2>
+
+            <p>Explore products worth discovering.</p>
+          </div>
+
+          <Link to="/products" className="home-view-link">
+            VIEW ALL →
+          </Link>
+        </div>
+
+        {loading ? (
+          <div className="home-message">
+            Loading trending products...
+          </div>
+        ) : bestsellers.length === 0 ? (
+          <div className="home-message">
+            Products are coming soon.
+          </div>
+        ) : (
+          <div className="home-product-grid">
             {bestsellers.map(renderProduct)}
           </div>
-        </section>
-      )}
+        )}
 
-      {/* FEATURED PRODUCTS */}
-      <section style={sectionStyle}>
-        <div style={sectionHeader}>
+      </section>
+
+      {/* =====================================
+          FEATURED PRODUCTS
+      ===================================== */}
+
+      <section className="home-section">
+
+        <div className="home-section-header">
           <div>
-            <p style={eyebrow}>HANDPICKED FOR YOU</p>
-            <h2 style={heading}>Featured Products</h2>
-            <p style={subheading}>
+            <p className="home-eyebrow">
+              HANDPICKED FOR YOU
+            </p>
+
+            <h2>Featured Products</h2>
+
+            <p>
               Discover our latest additions and collections.
             </p>
           </div>
 
-          <Link to="/products" style={viewLink}>VIEW ALL →</Link>
+          <Link to="/products" className="home-view-link">
+            VIEW ALL →
+          </Link>
         </div>
 
         {loading ? (
-          <p>Loading products...</p>
+          <div className="home-message">
+            Loading your favourite products...
+          </div>
         ) : featuredProducts.length === 0 ? (
-          <p>No products available yet.</p>
+          <div className="home-message">
+            No products available yet.
+          </div>
         ) : (
-          <div style={productGrid}>
+          <div className="home-product-grid">
             {featuredProducts.map(renderProduct)}
           </div>
         )}
+
       </section>
 
-      {/* NEWSLETTER */}
-      <section style={{
-        background: '#111827',
-        padding: '75px 24px',
-        textAlign: 'center',
-        color: '#fff'
-      }}>
-        <p style={{
-          color: '#c69b65',
-          fontSize: 10,
-          letterSpacing: 3,
-          marginBottom: 18
-        }}>
-          STAY IN THE LOOP
-        </p>
+      {/* =====================================
+          SERVICE BENEFITS
+      ===================================== */}
 
-        <h2 style={{
-          fontSize: 32,
-          marginBottom: 15
-        }}>
-          A little something for your inbox.
-        </h2>
+      <section className="home-benefits">
 
-        <p style={{
-          color: '#9ca3af',
-          fontSize: 14,
-          marginBottom: 30
-        }}>
-          Get updates on new arrivals, exclusive offers and more.
-        </p>
+        <div>
+          <span aria-hidden="true">✦</span>
+          <h3>Quality Products</h3>
+          <p>Carefully selected collections.</p>
+        </div>
 
-        <form
-          onSubmit={handleSubscribe}
-          style={{
-            display: 'flex',
-            maxWidth: 500,
-            margin: '0 auto',
-            gap: 8,
-            flexWrap: 'wrap'
-          }}
-        >
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="Your email address"
-            required
-            style={{
-              flex: '1 1 250px',
-              padding: 16,
-              border: '1px solid #374151',
-              background: '#1f2937',
-              color: '#fff',
-              outline: 'none',
-              fontSize: 13
-            }}
-          />
+        <div>
+          <span aria-hidden="true">◇</span>
+          <h3>Secure Shopping</h3>
+          <p>A safer shopping experience.</p>
+        </div>
 
-          <button
-            type="submit"
-            disabled={subscribing}
-            style={{
-              ...buttonStyle,
-              background: '#fff',
-              color: '#111827',
-              border: '1px solid #fff'
-            }}
-          >
-            {subscribing ? 'PLEASE WAIT...' : 'SUBSCRIBE →'}
-          </button>
-        </form>
+        <div>
+          <span aria-hidden="true">↗</span>
+          <h3>Easy Shopping</h3>
+          <p>Simple and convenient ordering.</p>
+        </div>
+
+      </section>
+
+      {/* =====================================
+          NEWSLETTER
+      ===================================== */}
+
+      <section className="home-newsletter">
+
+        <div className="home-newsletter-content">
+
+          <p className="home-eyebrow">
+            STAY IN THE LOOP
+          </p>
+
+          <h2>A little something for your inbox.</h2>
+
+          <p>
+            Get updates on new arrivals, exclusive offers and more.
+          </p>
+
+          <form onSubmit={handleSubscribe}>
+
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Your email address"
+              aria-label="Your email address"
+              autoComplete="email"
+              required
+            />
+
+            <button
+              type="submit"
+              disabled={subscribing}
+            >
+              {subscribing
+                ? 'PLEASE WAIT...'
+                : 'SUBSCRIBE →'}
+            </button>
+
+          </form>
+
+          <small>
+            Stay inspired. Unsubscribe anytime.
+          </small>
+
+        </div>
       </section>
 
     </main>
   );
 }
-
-const eyebrow: React.CSSProperties = {
-  color: '#a17b4b',
-  fontSize: 10,
-  letterSpacing: 2,
-  marginBottom: 10
-};
-
-const heading: React.CSSProperties = {
-  fontSize: 29,
-  fontWeight: 700,
-  marginBottom: 9
-};
-
-const subheading: React.CSSProperties = {
-  fontSize: 13,
-  color: '#9ca3af'
-};
-
-const sectionHeader: React.CSSProperties = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'end',
-  gap: 20,
-  marginBottom: 30,
-  flexWrap: 'wrap'
-};
-
-const viewLink: React.CSSProperties = {
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: 1,
-  color: '#111827'
-};
-
-const productGrid: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))',
-  gap: 22
-};
